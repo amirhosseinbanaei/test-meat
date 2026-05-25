@@ -1,0 +1,52 @@
+import type { MetadataRoute } from 'next';
+
+/**
+ * Web App Manifest. Next.js renders this at /manifest.webmanifest.
+ * Reference: https://nextjs.org/docs/app/api-reference/file-conventions/metadata/manifest
+ *
+ * Replace placeholder values with project-specific names, colors, icons.
+ */
+
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    name: '{{APP_NAME}}',
+    short_name: '{{APP_SHORT_NAME}}',
+    description: '{{APP_DESCRIPTION}}',
+    start_url: '/',
+    scope: '/',
+    display: 'standalone',           // Hides browser chrome when launched from home screen.
+    orientation: 'portrait',
+    background_color: '#ffffff',     // Splash screen background.
+    theme_color: '#000000',          // Status bar / window border color.
+    icons: [
+      {
+        src: '/icons/icon-192.png',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/icons/icon-512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/icons/icon-192-maskable.png',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'maskable',         // For adaptive icons on Android.
+      },
+      {
+        src: '/icons/icon-512-maskable.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable',
+      },
+    ],
+    // Optional but recommended for richer install UX
+    categories: ['productivity'],
+    lang: 'en',
+    dir: 'ltr',
+  };
+}

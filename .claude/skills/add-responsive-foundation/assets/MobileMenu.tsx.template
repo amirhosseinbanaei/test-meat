@@ -1,0 +1,132 @@
+'use client';
+
+import React, { useState } from 'react';
+import { Menu, X } from 'lucide-react';
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+  SheetTitle,
+  SheetClose,
+} from '@/common/components/ui/sheet';
+import { cn } from '@/common/lib/utils';
+
+/**
+ * The locked mobile-navigation pattern. Used by AppShell on mobile / tablet.
+ *
+ * - On `lg+`: this component is hidden — desktop nav (horizontal) renders instead.
+ * - On `< lg`: shows a 44×44 hamburger button that opens a side Sheet (drawer)
+ *   containing the nav links.
+ *
+ * Accessibility:
+ * - Hamburger is a real `<button>` with aria-label.
+ * - Sheet is Radix Dialog — focus trap, escape to close, scroll lock built in.
+ * - All links inside the menu are 44×44 minimum.
+ *
+ *   <MobileMenu>
+ *     <NavLink href="/products">Products</NavLink>
+ *     <NavLink href="/pricing">Pricing</NavLink>
+ *     <NavLink href="/about">About</NavLink>
+ *   </MobileMenu>
+ *
+ * Pair with a desktop nav rendered via `<nav className="hidden lg:flex">...</nav>`.
+ */
+
+interface MobileMenuProps {
+  children: React.ReactNode;
+  /** Optional menu title for screen readers. Defaults to "Menu". */
+  title?: string;
+  /** Optional content to render at the top of the menu (logo, user info). */
+  header?: React.ReactNode;
+  /** Optional content to render at the bottom (logout, settings). */
+  footer?: React.ReactNode;
+  /** Side from which the drawer slides in. Defaults to 'start' (RTL-aware). */
+  side?: 'start' | 'end';
+}
+
+export function MobileMenu({
+  children,
+  title = 'Menu',
+  header,
+  footer,
+  side = 'start',
+}: MobileMenuProps) {
+  const [open, setOpen] = useState(false);
+
+  // Translate 'start'/'end' to physical sides — handled by Sheet's dir prop
+  const sheetSide = side === 'start' ? 'left' : 'right';
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <button
+          type="button"
+          aria-label={title}
+          className={cn(
+            'inline-flex items-center justify-center',
+            'min-h-touch min-w-touch',
+            'rounded-md',
+            'hover:bg-muted focus-visible:bg-muted',
+            'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+            'lg:hidden', // desktop hides this; desktop nav takes over
+          )}
+        >
+          <Menu className="size-6" aria-hidden="true" />
+        </button>
+      </SheetTrigger>
+
+      <SheetContent
+        side={sheetSide}
+        className="flex w-full max-w-[min(85vw,360px)] flex-col gap-0 p-0"
+      >
+        <SheetTitle className="sr-only">{title}</SheetTitle>
+
+        {header && (
+          <div className="border-b p-4">{header}</div>
+        )}
+
+        <nav className="flex-1 overflow-y-auto p-2">
+          <ul className="flex flex-col gap-1">
+            {React.Children.map(children, (child, i) => (
+              <li key={i}>
+                <SheetClose asChild>
+                  <span className="block">{child}</span>
+                </SheetClose>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        {footer && (
+          <div className="border-t p-4">{footer}</div>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+/**
+ * The locked nav-link component for the mobile menu. Ensures 44×44 minimum.
+ *
+ *   <NavLink href="/products" active={pathname === '/products'}>Products</NavLink>
+ */
+interface NavLinkProps extends React.ComponentProps<'a'> {
+  active?: boolean;
+}
+
+export function NavLink({ active, className, ...props }: NavLinkProps) {
+  return (
+    <a
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'flex min-h-touch items-center rounded-md px-3 py-2',
+        'text-fluid-base',
+        'hover:bg-muted focus-visible:bg-muted',
+        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary',
+        active && 'bg-muted font-medium text-primary',
+        className,
+      )}
+      {...props}
+    />
+  );
+}

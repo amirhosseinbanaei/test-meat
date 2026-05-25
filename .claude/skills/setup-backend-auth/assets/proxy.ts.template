@@ -1,0 +1,70 @@
+/**
+ * proxy.ts — request interception, runs before every matched request.
+ *
+ * Responsibilities:
+ *   1. Block unauthenticated access to protected routes.
+ *   2. Block authenticated users from auth-only routes (login, signup).
+ *
+ * Performance: this runs on every request. Keep it cheap. We only check the
+ * presence of the cookie here — actual token validation happens at the backend
+ * when the page makes an API call.
+ *
+ * In Next.js 16, this file replaces `middleware.ts`. The exported function is
+ * `proxy`, not `middleware`. Runs on the Node.js runtime.
+ */
+
+import { NextResponse, type NextRequest } from 'next/server';
+import { ACCESS_TOKEN_COOKIE } from '@/common/services/session';
+
+/**
+ * Routes that REQUIRE a logged-in user. Unauthenticated visits get redirected
+ * to /login with `next` pointing back to where they were heading.
+ */
+const PROTECTED_PATTERNS: RegExp[] = [
+  /^\/dashboard(\/.*)?$/,
+  /^\/account(\/.*)?$/,
+  /^\/settings(\/.*)?$/,
+  // Add more patterns here. Keep them as `^/path(\/.*)?$`.
+];
+
+/**
+ * Routes that REQUIRE the user to be signed OUT. A logged-in visit gets sent
+ * to the home (or wherever you want post-login).
+ */
+const AUTH_ONLY_PATTERNS: RegExp[] = [
+  /^\/login$/,
+  /^\/signup$/,
+  /^\/forgot-password$/,
+];
+
+export function proxy(request: NextRequest): NextResponse {
+  const { pathname, search } = request.nextUrl;
+  const hasSession = Boolean(request.cookies.get(ACCESS_TOKEN_COOKIE)?.value);
+
+  if (PROTECTED_PATTERNS.some((p) => p.test(pathname)) && !hasSession) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    url.searchParams.set('next', pathname + search);
+    return NextResponse.redirect(url);
+  }
+
+  if (AUTH_ONLY_PATTERNS.some((p) => p.test(pathname)) && hasSession) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/';
+    url.search = '';
+    return NextResponse.redirect(url);
+  }
+
+  return NextResponse.next();
+}
+
+/**
+ * The matcher tells Next.js which requests this proxy should run on.
+ * Excluding static assets and the Next.js internals keeps it cheap.
+ */
+export const config = {
+  matcher: [
+    // Match everything except Next.js internals and static assets.
+    '/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico|woff|woff2|ttf|otf)$).*)',
+  ],
+};

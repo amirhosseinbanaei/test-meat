@@ -1,0 +1,56 @@
+{
+  "compilerOptions": {
+    /* Type checking — strictest reasonable settings. */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noPropertyAccessFromIndexSignature": true,
+
+    /* Modules. */
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "ES2022"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+
+    /* JSX / React. */
+    "jsx": "preserve",
+    "allowJs": false,
+    "skipLibCheck": true,
+
+    /* Emit — Next.js compiles, we don't. */
+    "noEmit": true,
+    "incremental": true,
+
+    /* Path aliases. The generic `@/*` is the fallback. The specific aliases
+       make the dependency direction visible in imports (see
+       references/folder-structure.md). */
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@/app/*": ["./src/app/*"],
+      "@/common/*": ["./src/common/*"],
+      "@/modules/*": ["./src/modules/*"]
+    },
+
+    /* Next.js plugin gives in-editor types for App Router conventions. */
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}

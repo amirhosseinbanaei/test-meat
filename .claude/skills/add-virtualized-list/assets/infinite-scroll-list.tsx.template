@@ -1,0 +1,102 @@
+'use client';
+
+/**
+ * Virtualised infinite-scroll list.
+ *
+ * Combines TanStack Virtual + TanStack Query's `useInfiniteQuery`. The list
+ * fetches the next page automatically when the user scrolls near the bottom.
+ *
+ * Replace:
+ *   {{COMPONENT_NAME}}   PascalCase.
+ *   {{ITEM_TYPE}}        Row data shape.
+ *   {{QUERY_KEY}}        Base query key, e.g. 'posts'.
+ *   {{ESTIMATED_HEIGHT}} Best guess for row height.
+ *   {{FETCH_PAGE}}       Function returning { items, nextCursor }.
+ */
+
+import { useEffect, useRef } from 'react';
+import { useInfiniteQuery } from '@tanstack/react-query';
+import { useVirtualizer } from '@tanstack/react-virtual';
+
+type Page = { items: {{ITEM_TYPE}}[]; nextCursor: string | null };
+
+async function {{FETCH_PAGE}}(cursor: string | null): Promise<Page> {
+  const url = `/api/{{QUERY_KEY}}${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch.');
+  return res.json();
+}
+
+type {{COMPONENT_NAME}}Props = {
+  renderItem: (item: {{ITEM_TYPE}}, index: number) => React.ReactNode;
+  height?: number | string;
+};
+
+export default function {{COMPONENT_NAME}}({ renderItem, height = 600 }: {{COMPONENT_NAME}}Props) {
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['{{QUERY_KEY}}', 'infinite'],
+    queryFn: ({ pageParam }) => {{FETCH_PAGE}}(pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor,
+  });
+
+  // Flatten pages into one items array.
+  const items = data?.pages.flatMap((p) => p.items) ?? [];
+
+  const parentRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    // The "+1" leaves room for the loading sentinel row at the bottom.
+    count: hasNextPage ? items.length + 1 : items.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => {{ESTIMATED_HEIGHT}},
+    overscan: 5,
+    measureElement: (el) => el.getBoundingClientRect().height,
+  });
+
+  // When the last rendered row is the sentinel, fetch the next page.
+  useEffect(() => {
+    const virtualRows = virtualizer.getVirtualItems();
+    const last = virtualRows[virtualRows.length - 1];
+    if (!last) return;
+    if (last.index >= items.length - 1 && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [virtualizer.getVirtualItems(), items.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  return (
+    <div ref={parentRef} className="overflow-auto" style={{ height, contain: 'strict' }}>
+      <div style={{ height: virtualizer.getTotalSize(), width: '100%', position: 'relative' }}>
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const isSentinel = virtualRow.index >= items.length;
+          return (
+            <div
+              key={virtualRow.key}
+              data-index={virtualRow.index}
+              ref={virtualizer.measureElement}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+            >
+              {isSentinel ? (
+                <div className="py-4 text-center text-sm text-muted-foreground">
+                  {isFetchingNextPage ? 'Loading…' : 'Loading more…'}
+                </div>
+              ) : (
+                renderItem(items[virtualRow.index]!, virtualRow.index)
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

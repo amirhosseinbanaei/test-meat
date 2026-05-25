@@ -1,0 +1,58 @@
+/**
+ * Auth helpers for Server Components.
+ *
+ * Reads the current user by asking the backend's `/me` endpoint. The api-client
+ * attaches the cookie token automatically.
+ *
+ * Use `getCurrentUser()` when an authenticated user is optional (e.g. a marketing
+ * page that personalises if signed in).
+ * Use `requireUser()` when the page MUST have a user — it redirects to /login if
+ * there isn't one.
+ */
+
+import 'server-only';
+import { redirect } from 'next/navigation';
+import { cache } from 'react';
+import { z } from 'zod';
+import { getJson, BackendApiError } from '@/common/services/api-client';
+
+// Adjust the schema to match the backend's /me response.
+const userSchema = z.object({
+  id: z.string(),
+  email: z.string().email(),
+  name: z.string().nullable(),
+  // Add fields as the backend returns them.
+});
+
+export type User = z.infer<typeof userSchema>;
+
+/**
+ * `cache()` from React dedupes the call across the same render pass — multiple
+ * components in the same page can call `getCurrentUser()` and hit the backend
+ * once.
+ */
+export const getCurrentUser = cache(async (): Promise<User | null> => {
+  try {
+    const raw = await getJson<unknown>('/me');
+    return userSchema.parse(raw);
+  } catch (err) {
+    if (err instanceof BackendApiError && (err.status === 401 || err.status === 403)) {
+      return null;
+    }
+    // Unexpected error — surface to the segment's error.tsx boundary.
+    throw err;
+  }
+});
+
+/**
+ * Requires an authenticated user. Redirects to /login when there isn't one.
+ * The `next` query param lets you return the user to where they were.
+ */
+export async function requireUser(returnTo?: string): Promise<User> {
+  const user = await getCurrentUser();
+  if (!user) {
+    const next = returnTo ? `?next=${encodeURIComponent(returnTo)}` : '';
+    redirect(`/login${next}`);
+  }
+  return user;
+}

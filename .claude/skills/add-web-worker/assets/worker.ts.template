@@ -1,0 +1,45 @@
+/**
+ * {{WORKER_NAME}} Web Worker.
+ *
+ * This file runs in a separate thread. It cannot access the DOM, window,
+ * document, localStorage, or sessionStorage. It CAN use fetch, IndexedDB,
+ * crypto, and most other Web APIs.
+ *
+ * Methods exposed below are callable from the main thread via the
+ * `useWorker` hook. Their signatures form the public API — keep them stable
+ * once consumed by components.
+ *
+ * Heavy synchronous work belongs here. The main thread stays responsive
+ * while this thread crunches.
+ */
+
+import { expose } from '@/common/lib/worker-rpc';
+
+// ---------------------------------------------------------------------------
+// API
+// ---------------------------------------------------------------------------
+
+const api = {
+  /**
+   * Example method. Replace with the real operations the feature needs.
+   * Inputs and outputs MUST be structured-cloneable (no DOM nodes, no
+   * functions, no class instances unless they're built-in types like Date).
+   */
+  example(input: string): string {
+    // Heavy work runs here. The main thread is free while this executes.
+    return input.toUpperCase();
+  },
+
+  // Add more methods following the same pattern. Each method:
+  //   - Takes structured-cloneable arguments
+  //   - Returns structured-cloneable values (or a Promise of one)
+  //   - Optionally returns { value, transfer: [ArrayBuffer, ...] } for transferables
+};
+
+// ---------------------------------------------------------------------------
+// Exposed type — host imports this for type-safe RPC calls
+// ---------------------------------------------------------------------------
+
+export type {{WORKER_NAME}}Api = typeof api;
+
+expose(api);

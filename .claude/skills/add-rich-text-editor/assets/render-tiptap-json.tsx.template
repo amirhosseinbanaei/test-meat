@@ -1,0 +1,42 @@
+/**
+ * Render Tiptap JSON back to HTML.
+ *
+ * Used on the read side — pages that DISPLAY stored editor content (e.g. a blog
+ * post page). Runs on the server: takes JSON from storage, returns rendered HTML
+ * inside Tailwind Typography's `prose` styles.
+ *
+ * Keep the extension list IN SYNC with the editor's extensions — if the editor
+ * uses Tiptap features the renderer doesn't know about, content will be lost.
+ * Best practice: import a shared `tiptapExtensions` const from a sibling file
+ * and use it in both the editor and the renderer.
+ */
+
+import { generateHTML } from '@tiptap/html';
+import StarterKit from '@tiptap/starter-kit';
+import Link from '@tiptap/extension-link';
+import Image from '@tiptap/extension-image';
+
+type Json = Record<string, unknown>;
+
+const extensions = [
+  StarterKit,
+  Link.configure({ openOnClick: false, autolink: true }),
+  Image,
+];
+
+export function RenderTiptapJson({ json }: { json: Json }) {
+  // generateHTML runs synchronously on the server. The output is sanitised by
+  // ProseMirror's schema — only nodes/marks defined in `extensions` survive.
+  // That's the safety property: even if storage is corrupted, the renderer
+  // won't emit arbitrary script tags.
+  const html = generateHTML(json, extensions);
+
+  return (
+    <div
+      className="prose prose-neutral dark:prose-invert max-w-none"
+      // Safe because generateHTML serialises through the Tiptap schema —
+      // not raw user HTML.
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+}

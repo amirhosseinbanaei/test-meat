@@ -1,0 +1,33 @@
+'use client';
+
+import { useEffect } from 'react';
+
+/**
+ * Runs axe-core in development. Reports accessibility violations to the
+ * browser console as the app renders.
+ *
+ * Mount this once in `app/layout.tsx`, ideally behind a dev-only guard:
+ *
+ *   {process.env.NODE_ENV === 'development' && <AxeReporter />}
+ *
+ * Production builds never load axe — it's heavy and not needed in prod.
+ */
+
+export function AxeReporter() {
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'development') return;
+    if (typeof window === 'undefined') return;
+
+    // Dynamic import keeps axe out of the production bundle entirely.
+    void import('@axe-core/react').then(({ default: axe }) => {
+      void import('react').then((React) => {
+        void import('react-dom').then((ReactDOM) => {
+          // Debounce to avoid log spam on rapid re-renders.
+          axe(React.default, ReactDOM.default, 1000);
+        });
+      });
+    });
+  }, []);
+
+  return null;
+}

@@ -1,0 +1,61 @@
+'use client';
+
+import { useEffect, useRef, useState, type RefObject } from 'react';
+
+/**
+ * Read the current width of an element via ResizeObserver. For the rare cases
+ * where JS needs to know the container's actual size (e.g. virtualization
+ * column counts, dynamic chart sizing).
+ *
+ * STRONG PREFERENCE: use CSS container queries (`@container` + `@md:`) for
+ * styling. This hook is for *logic* — picking a code path based on size.
+ *
+ *   const ref = useRef<HTMLDivElement>(null);
+ *   const { width, atLeast } = useContainerQuery(ref);
+ *
+ *   return (
+ *     <div ref={ref} className="@container">
+ *       {atLeast(640) ? <DesktopGrid /> : <MobileList />}
+ *     </div>
+ *   );
+ *
+ * SSR-safe: returns width 0 on first render; populates after mount.
+ */
+
+export interface ContainerQueryResult {
+  width: number;
+  height: number;
+  atLeast: (px: number) => boolean;
+  atMost: (px: number) => boolean;
+  between: (minPx: number, maxPx: number) => boolean;
+}
+
+export function useContainerQuery<T extends HTMLElement>(
+  ref: RefObject<T | null>,
+): ContainerQueryResult {
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node || typeof ResizeObserver === 'undefined') return;
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const { width, height } = entry.contentRect;
+      setSize({ width, height });
+    });
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [ref]);
+
+  return {
+    width: size.width,
+    height: size.height,
+    atLeast: (px: number) => size.width >= px,
+    atMost: (px: number) => size.width <= px,
+    between: (minPx: number, maxPx: number) =>
+      size.width >= minPx && size.width <= maxPx,
+  };
+}

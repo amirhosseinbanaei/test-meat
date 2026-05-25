@@ -1,0 +1,70 @@
+/**
+ * useMutation hook: {{MUTATION_NAME}}
+ *
+ * Replace:
+ *   {{MUTATION_NAME}}     camelCase, e.g. `createPost`, `togglePostLike`.
+ *   {{MUTATION_HOOK}}     PascalCase, e.g. `useCreatePost`.
+ *   {{INPUT_TYPE}}        Shape of the mutation input.
+ *   {{RESULT_TYPE}}       Shape of the mutation result.
+ *   {{KEY_BASE}}          The query key affected by this mutation
+ *                         (will be invalidated on success).
+ *
+ * Rules:
+ *   - Prefer calling a Server Action over a Route Handler for the actual
+ *     mutation — the Server Action gets the cookie auth for free.
+ *   - If you need optimistic UI, fill in the onMutate / onError / onSettled
+ *     section below. If you don't, delete it.
+ *   - Always invalidate the related query key on success.
+ */
+
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { z } from 'zod';
+
+const inputSchema = z.object({
+  // describe the input:
+  // title: z.string().min(1),
+});
+
+const resultSchema = z.object({
+  // describe the result:
+  // id: z.string(),
+});
+
+export type {{INPUT_TYPE}} = z.infer<typeof inputSchema>;
+export type {{RESULT_TYPE}} = z.infer<typeof resultSchema>;
+
+async function run{{MUTATION_HOOK}}(input: {{INPUT_TYPE}}): Promise<{{RESULT_TYPE}}> {
+  // Replace this with a call to a Server Action that performs the mutation
+  // against the separate backend. Returning the parsed result keeps the
+  // boundary typed.
+  // import { theServerAction } from '@/actions/...';
+  // const raw = await theServerAction(input);
+  // return resultSchema.parse(raw);
+  throw new Error('Not implemented');
+}
+
+export function use{{MUTATION_HOOK}}() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: run{{MUTATION_HOOK}},
+
+    // Optimistic update — remove this block if not needed.
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: ['{{KEY_BASE}}'] });
+      const previous = queryClient.getQueryData(['{{KEY_BASE}}']);
+      // queryClient.setQueryData(['{{KEY_BASE}}'], (old) => /* derived next */);
+      return { previous };
+    },
+    onError: (_err, _input, ctx) => {
+      // Roll back on failure.
+      if (ctx?.previous !== undefined) {
+        queryClient.setQueryData(['{{KEY_BASE}}'], ctx.previous);
+      }
+    },
+    onSettled: () => {
+      // Refetch to converge with server truth, success or failure.
+      queryClient.invalidateQueries({ queryKey: ['{{KEY_BASE}}'] });
+    },
+  });
+}

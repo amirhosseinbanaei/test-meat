@@ -1,0 +1,23 @@
+'use client';
+
+import { useEffect } from 'react';
+
+/**
+ * Sets `document.title` while the component is mounted. Restores the previous
+ * title on unmount.
+ *
+ *   useDocumentTitle('Dashboard — MyApp');
+ *
+ * For route-level titles, prefer Next.js `metadata` exports — they're picked
+ * up server-side and avoid the title flash. Use this hook for client-side
+ * title changes that depend on dynamic state (e.g. unread-count badge).
+ */
+export function useDocumentTitle(title: string): void {
+  useEffect(() => {
+    const previous = document.title;
+    document.title = title;
+    return () => {
+      document.title = previous;
+    };
+  }, [title]);
+}

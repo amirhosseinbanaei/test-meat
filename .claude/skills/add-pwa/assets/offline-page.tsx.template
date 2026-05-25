@@ -1,0 +1,36 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { Button } from '@/common/components/ui/button';
+
+export const metadata: Metadata = {
+  title: 'Offline',
+  description: 'You are offline.',
+};
+
+/**
+ * Offline fallback. Served by the Service Worker when both network and cache
+ * fail for a navigation request.
+ *
+ * Keep this page small and self-contained — no API calls, no client-only
+ * dependencies that need network. The whole point is it works without one.
+ */
+
+export default function OfflinePage() {
+  return (
+    <main className="flex min-h-svh flex-col items-center justify-center gap-6 p-8 text-center">
+      <h1 className="text-2xl font-semibold">You're offline</h1>
+      <p className="text-muted-foreground max-w-md">
+        We couldn't reach the network and the page you wanted isn't cached.
+        Check your connection — most pages you've visited before will still work.
+      </p>
+      <div className="flex gap-3">
+        <Button asChild>
+          <Link href="/">Go home</Link>
+        </Button>
+        <Button variant="outline" onClick={() => location.reload()}>
+          Try again
+        </Button>
+      </div>
+    </main>
+  );
+}

@@ -1,0 +1,26 @@
+/**
+ * Form schema: {{SCHEMA_NAME}}
+ *
+ * Imported by BOTH:
+ *   - the RHF form on the client (validates as the user types)
+ *   - the Server Action on the server (re-validates as the trust boundary)
+ *
+ * One schema, two consumers. The client validation is UX; the server
+ * validation is correctness.
+ *
+ * Replace:
+ *   {{SCHEMA_NAME}}   camelCase, e.g. `onboardingSchema`.
+ *   {{INPUT_TYPE}}    PascalCase derived type name, e.g. `OnboardingInput`.
+ */
+
+import { z } from 'zod';
+
+export const {{SCHEMA_NAME}} = z.object({
+  // Fill in fields. Keep messages user-friendly — they show up in the UI.
+  // Examples:
+  // name:  z.string().min(1, 'Name is required.'),
+  // email: z.string().email('Enter a valid email address.'),
+  // age:   z.number().int().min(13, 'Must be 13 or older.'),
+});
+
+export type {{INPUT_TYPE}} = z.infer<typeof {{SCHEMA_NAME}}>;

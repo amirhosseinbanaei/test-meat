@@ -1,0 +1,22 @@
+/**
+ * Loading UI — Server Component. Renders instantly while the matching `page.tsx`
+ * is fetching data on the server. Replaces the page tree until streaming completes.
+ *
+ * Replace placeholders:
+ *   {{COMPONENT_NAME}}   PascalCase name, e.g. `BlogLoading`.
+ *
+ * Rules:
+ *   - No props. Loading boundaries don't receive `params` or `searchParams`.
+ *   - Keep this lightweight — it's the first thing the user sees on navigation.
+ *   - Prefer skeletons over spinners when the page shape is predictable.
+ *   - This file IS the Suspense boundary for the segment. You do not need to wrap
+ *     anything in <Suspense> manually for it to work.
+ */
+
+export default function {{COMPONENT_NAME}}() {
+  return (
+    <div aria-busy="true" aria-live="polite">
+      Loading…
+    </div>
+  );
+}

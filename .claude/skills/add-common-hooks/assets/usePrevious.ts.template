@@ -1,0 +1,21 @@
+'use client';
+
+import { useEffect, useRef } from 'react';
+
+/**
+ * Returns the value from the previous render.
+ *
+ *   const prevCount = usePrevious(count);
+ *   if (prevCount !== undefined && prevCount !== count) {
+ *     // count changed since last render
+ *   }
+ *
+ * Returns `undefined` on the very first render — there is no previous value.
+ */
+export function usePrevious<T>(value: T): T | undefined {
+  const ref = useRef<T | undefined>(undefined);
+  useEffect(() => {
+    ref.current = value;
+  }, [value]);
+  return ref.current;
+}

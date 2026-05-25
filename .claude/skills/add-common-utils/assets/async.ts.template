@@ -1,0 +1,107 @@
+/**
+ * Promise / async helpers.
+ *
+ * The `http()` function in `common/services/http.ts` uses its own internal
+ * versions of these. The exports here are for use in application code:
+ *   - Server Actions
+ *   - Non-fetch async work (e.g. waiting for an animation to finish)
+ *   - Tests
+ */
+
+// ---------------------------------------------------------------------------
+// sleep
+// ---------------------------------------------------------------------------
+
+/** Resolve after `ms` milliseconds. */
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// ---------------------------------------------------------------------------
+// withTimeout
+// ---------------------------------------------------------------------------
+
+export class TimeoutError extends Error {
+  constructor(ms: number) {
+    super(`Operation timed out after ${ms}ms`);
+    this.name = 'TimeoutError';
+  }
+}
+
+/**
+ * Race a promise against a timeout. Rejects with `TimeoutError` if the
+ * timeout wins.
+ *
+ *   const data = await withTimeout(fetchSomething(), 5_000);
+ *
+ * Note: this does NOT cancel the underlying work. For cancellation, use
+ * an AbortController and pass the signal into the operation itself.
+ */
+export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new TimeoutError(ms)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
+// ---------------------------------------------------------------------------
+// retry
+// ---------------------------------------------------------------------------
+
+export interface RetryOptions {
+  /** Number of additional attempts after the first. Default: 3. */
+  retries?: number;
+  /** Base delay between attempts (ms). Doubled on each retry. Default: 500. */
+  delay?: number;
+  /** Cap on the delay between attempts (ms). Default: 30_000. */
+  maxDelay?: number;
+  /** Decide whether to retry given the error. Default: always retry. */
+  shouldRetry?: (error: unknown, attempt: number) => boolean;
+  /** Called before each retry. Useful for logging. */
+  onRetry?: (error: unknown, attempt: number) => void;
+}
+
+/**
+ * Generic retry with exponential backoff.
+ *
+ *   const result = await retry(
+ *     () => fetchSomething(),
+ *     { retries: 5, delay: 200 },
+ *   );
+ *
+ * Pass `shouldRetry` to control which errors retry — e.g. only retry on
+ * network errors, never on validation errors.
+ */
+export async function retry<T>(fn: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
+  const {
+    retries = 3,
+    delay = 500,
+    maxDelay = 30_000,
+    shouldRetry = () => true,
+    onRetry,
+  } = options;
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (attempt === retries) break;
+      if (!shouldRetry(err, attempt)) break;
+      onRetry?.(err, attempt);
+      const wait = Math.min(delay * 2 ** attempt, maxDelay);
+      await sleep(wait);
+    }
+  }
+  throw lastError;
+}

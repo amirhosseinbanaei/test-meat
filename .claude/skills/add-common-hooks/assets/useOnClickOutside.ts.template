@@ -1,0 +1,47 @@
+'use client';
+
+import { useEffect, useRef, type RefObject } from 'react';
+
+/**
+ * Fire `handler` when a pointer event happens outside the ref'd element.
+ *
+ *   const ref = useRef<HTMLDivElement>(null);
+ *   useOnClickOutside(ref, () => setOpen(false));
+ *   return <div ref={ref}>...</div>;
+ *
+ * Listens to `mousedown` AND `touchstart` so it works on touch devices.
+ * Use `pointerdown` if you want a single event — pass `event` option.
+ *
+ * Common pitfall: a button that toggles the dropdown ALSO triggers
+ * click-outside if it's not inside the ref'd container. Either include the
+ * trigger inside the ref'd element OR check `event.target` against the
+ * trigger before calling the handler.
+ */
+export function useOnClickOutside<T extends HTMLElement>(
+  ref: RefObject<T | null>,
+  handler: (event: PointerEvent | MouseEvent | TouchEvent) => void,
+  options: { event?: 'mousedown' | 'pointerdown' | 'click' } = {},
+): void {
+  const handlerRef = useRef(handler);
+  useEffect(() => {
+    handlerRef.current = handler;
+  }, [handler]);
+
+  useEffect(() => {
+    const eventName = options.event ?? 'mousedown';
+
+    const listener = (event: Event) => {
+      const target = event.target as Node | null;
+      if (!target || !ref.current) return;
+      if (ref.current.contains(target)) return;
+      handlerRef.current(event as PointerEvent | MouseEvent | TouchEvent);
+    };
+
+    document.addEventListener(eventName, listener);
+    document.addEventListener('touchstart', listener);
+    return () => {
+      document.removeEventListener(eventName, listener);
+      document.removeEventListener('touchstart', listener);
+    };
+  }, [ref, options.event]);
+}

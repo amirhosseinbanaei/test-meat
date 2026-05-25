@@ -1,0 +1,130 @@
+/**
+ * Simple validators. For schema validation in forms / actions, use Zod —
+ * these are utilities for quick checks (e.g. dynamic field filtering).
+ *
+ * Where these overlap with what Zod offers (e.g. `z.string().email()`),
+ * prefer Zod inside forms and actions. Use these for one-off runtime checks
+ * outside the schema layer.
+ */
+
+// ---------------------------------------------------------------------------
+// Email
+// ---------------------------------------------------------------------------
+
+/**
+ * Pragmatic email check. Not RFC 5322-compliant — that's almost never useful.
+ * Accepts anything that looks like `local@domain.tld`.
+ *
+ * For server-side validation, also verify with a confirmation email — no
+ * regex catches typos and tempmail domains. This is for UX, not security.
+ */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function isValidEmail(input: string): boolean {
+  return EMAIL_RE.test(input.trim());
+}
+
+// ---------------------------------------------------------------------------
+// URL
+// ---------------------------------------------------------------------------
+
+/**
+ * Validate a URL. Accepts http(s) and other schemes by default.
+ * Pass `protocols` to restrict (most common: `['http:', 'https:']`).
+ */
+export function isValidUrl(input: string, options: { protocols?: string[] } = {}): boolean {
+  try {
+    const url = new URL(input);
+    if (options.protocols) {
+      return options.protocols.includes(url.protocol);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Phone
+// ---------------------------------------------------------------------------
+
+/**
+ * Lenient phone validation. Strips formatting characters, then checks that
+ * 7–15 digits remain (covers most international formats).
+ *
+ * For strict, country-aware validation (E.164, region rules), use a library
+ * like `libphonenumber-js`. This is fine for "is this plausibly a phone".
+ */
+export function isValidPhone(input: string): boolean {
+  const digits = input.replace(/[^\d]/g, '');
+  return digits.length >= 7 && digits.length <= 15;
+}
+
+// ---------------------------------------------------------------------------
+// Password strength
+// ---------------------------------------------------------------------------
+
+export interface PasswordStrength {
+  /** 0 (weakest) to 4 (strongest). */
+  score: 0 | 1 | 2 | 3 | 4;
+  /** Concise feedback line. */
+  message: string;
+  /** Individual checks that passed. */
+  checks: {
+    length: boolean;
+    upper: boolean;
+    lower: boolean;
+    digit: boolean;
+    symbol: boolean;
+  };
+}
+
+/**
+ * Score a password 0–4 with a friendly message.
+ * NOT a security check on its own — pair with server-side checks and a
+ * leaked-password lookup (Have I Been Pwned API or similar).
+ */
+export function passwordStrength(password: string): PasswordStrength {
+  const checks = {
+    length: password.length >= 8,
+    upper: /[A-Z]/.test(password),
+    lower: /[a-z]/.test(password),
+    digit: /\d/.test(password),
+    symbol: /[^A-Za-z0-9]/.test(password),
+  };
+
+  const count = Object.values(checks).filter(Boolean).length;
+  const score = Math.min(4, count) as 0 | 1 | 2 | 3 | 4;
+
+  const message =
+    !checks.length ? 'Too short — use at least 8 characters.'
+    : score <= 2    ? 'Weak — mix in uppercase, numbers, or symbols.'
+    : score === 3   ? 'Okay — adding more variety would help.'
+    : score === 4   ? 'Strong.'
+    :                  'Very strong.';
+
+  return { score, message, checks };
+}
+
+/** Boolean version — passes basic complexity rules. */
+export function isStrongPassword(password: string): boolean {
+  return passwordStrength(password).score >= 3;
+}
+
+// ---------------------------------------------------------------------------
+// File names / paths
+// ---------------------------------------------------------------------------
+
+/**
+ * Sanitise a string for use as a filename — strips path separators, control
+ * chars, and reserved names. Trims length.
+ */
+export function sanitizeFilename(input: string, maxLength = 255): string {
+  return input
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x1f\x7f]/g, '') // control chars
+    .replace(/[/\\:*?"<>|]/g, '')    // OS-reserved
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength);
+}

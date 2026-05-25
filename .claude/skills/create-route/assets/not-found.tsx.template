@@ -1,0 +1,22 @@
+/**
+ * Not Found — Server Component. Renders when `notFound()` is called from within
+ * this segment, or when the route doesn't match any defined path.
+ *
+ * Replace placeholders:
+ *   {{COMPONENT_NAME}}   PascalCase name, e.g. `BlogNotFound`.
+ *
+ * Rules:
+ *   - This file is scoped to the segment it lives in. The root `app/not-found.tsx`
+ *     is the global 404.
+ *   - Triggering 404 from inside a page or layout:  `import { notFound } from 'next/navigation'`.
+ *   - Status code is automatically 404 — do not set it manually.
+ */
+
+export default function {{COMPONENT_NAME}}() {
+  return (
+    <main>
+      <h1>Not found</h1>
+      <p>The page you’re looking for doesn’t exist.</p>
+    </main>
+  );
+}

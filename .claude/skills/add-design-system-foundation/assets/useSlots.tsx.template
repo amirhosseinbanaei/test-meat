@@ -1,0 +1,93 @@
+'use client';
+
+import React from 'react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/common/components/ui/tooltip';
+import { cn } from '@/common/lib/utils';
+
+/**
+ * The locked "slots" API for ds/ components.
+ *
+ *   const { withTooltip, leftIcon, rightIcon, hasLeftIcon, hasRightIcon } =
+ *     useSlots(slots, { iconClass: 'size-4 text-muted-foreground shrink-0' });
+ *
+ *   return withTooltip(
+ *     <Root>
+ *       {leftIcon}
+ *       <Body className={cn(hasLeftIcon && 'pl-9', hasRightIcon && 'pr-9')} />
+ *       {rightIcon}
+ *     </Root>
+ *   );
+ *
+ * `withTooltip` is a no-op when no tooltip slot is provided.
+ * `leftIcon` / `rightIcon` return wrapped span elements with absolute positioning
+ * — drop them inside a `relative` parent.
+ */
+
+export interface SlotOptions {
+  leftIcon?: React.ReactNode;
+  rightIcon?: React.ReactNode;
+  tooltip?: {
+    content: React.ReactNode;
+    side?: 'top' | 'bottom' | 'left' | 'right';
+    delayDuration?: number;
+  };
+}
+
+interface UseSlotsConfig {
+  /** Tailwind classes applied to the icon wrapper. Defaults to a sensible base. */
+  iconClass?: string;
+  /** Position class for leftIcon wrapper. Defaults to absolute, RTL-aware. */
+  leftIconPosition?: string;
+  /** Position class for rightIcon wrapper. */
+  rightIconPosition?: string;
+}
+
+const DEFAULT_ICON_CLASS = 'size-4 text-muted-foreground shrink-0 pointer-events-none';
+const DEFAULT_LEFT_POSITION = 'absolute start-3 top-1/2 -translate-y-1/2';
+const DEFAULT_RIGHT_POSITION = 'absolute end-3 top-1/2 -translate-y-1/2';
+
+export function useSlots(slots: SlotOptions | undefined, config: UseSlotsConfig = {}) {
+  const iconClass = cn(DEFAULT_ICON_CLASS, config.iconClass);
+  const leftPos = config.leftIconPosition ?? DEFAULT_LEFT_POSITION;
+  const rightPos = config.rightIconPosition ?? DEFAULT_RIGHT_POSITION;
+
+  const hasLeftIcon = Boolean(slots?.leftIcon);
+  const hasRightIcon = Boolean(slots?.rightIcon);
+
+  const leftIcon = hasLeftIcon ? (
+    <span className={cn(leftPos, iconClass)} aria-hidden="true">
+      {slots!.leftIcon}
+    </span>
+  ) : null;
+
+  const rightIcon = hasRightIcon ? (
+    <span className={cn(rightPos, iconClass)}>
+      {slots!.rightIcon}
+    </span>
+  ) : null;
+
+  const withTooltip = React.useCallback(
+    (children: React.ReactElement): React.ReactElement => {
+      if (!slots?.tooltip) return children;
+      const { content, side = 'top', delayDuration = 200 } = slots.tooltip;
+      return (
+        <TooltipProvider delayDuration={delayDuration}>
+          <Tooltip>
+            <TooltipTrigger asChild>{children}</TooltipTrigger>
+            <TooltipContent side={side} dir="rtl">
+              {content}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    },
+    [slots?.tooltip],
+  );
+
+  return { withTooltip, leftIcon, rightIcon, hasLeftIcon, hasRightIcon };
+}

@@ -1,0 +1,165 @@
+/**
+ * `http<T>` — the team's standard fetch wrapper.
+ *
+ * Wraps native `fetch` with:
+ *   - **Timeout** via AbortController. Default 30 seconds; override per call.
+ *   - **Retry** with exponential backoff for network errors and configurable
+ *     retry-on-status (default: 408, 429, 502, 503, 504).
+ *   - **Abort signal merging** — pass your own `signal` for cancellation and
+ *     it composes with the internal timeout signal.
+ *   - **Standardized error throwing** — every failure throws an `HttpError`
+ *     with the team's static shape.
+ *   - **Custom error messages** — override the thrown message per status.
+ *   - **JSON convenience** — pass `json:` to auto-stringify and set headers.
+ *
+ * Returns parsed JSON when the response Content-Type is JSON, otherwise the
+ * raw text. The generic `T` is the expected success shape; not validated by
+ * `http` itself (use Zod at the call site for that).
+ */
+
+import { HttpError, type RequestOptions } from './http-types';
+
+const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_RETRY_DELAY_MS = 1_000;
+const DEFAULT_RETRY_STATUSES = [408, 429, 502, 503, 504];
+
+export async function http<T = unknown>(
+  url: string | URL,
+  options: RequestOptions = {},
+): Promise<T> {
+  const {
+    timeout = DEFAULT_TIMEOUT_MS,
+    retries = 0,
+    retryDelay = DEFAULT_RETRY_DELAY_MS,
+    retryOnStatuses = DEFAULT_RETRY_STATUSES,
+    errorMessages = {},
+    json,
+    body: rawBody,
+    headers: rawHeaders,
+    signal: externalSignal,
+    ...rest
+  } = options;
+
+  // Build headers + body. `json` takes precedence over `body`.
+  const headers = new Headers(rawHeaders);
+  let body: BodyInit | undefined = rawBody;
+  if (json !== undefined) {
+    body = JSON.stringify(json);
+    if (!headers.has('content-type')) headers.set('content-type', 'application/json');
+  }
+
+  let attempt = 0;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    // One AbortController per attempt — composed with the user's signal if present.
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => timeoutController.abort('timeout'), timeout);
+    const signal = mergeAbortSignals(externalSignal, timeoutController.signal);
+
+    try {
+      const response = await fetch(url, {
+        ...rest,
+        headers,
+        body,
+        signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const shouldRetry =
+          attempt < retries && retryOnStatuses.includes(response.status);
+        if (shouldRetry) {
+          await sleep(backoffDelay(retryDelay, attempt));
+          attempt++;
+          continue;
+        }
+        throw await HttpError.fromResponse(response, errorMessages);
+      }
+
+      return await parseResponseBody<T>(response);
+    } catch (err) {
+      clearTimeout(timeoutId);
+
+      // Already an HttpError (thrown above) — propagate immediately.
+      if (err instanceof HttpError) throw err;
+
+      // External cancellation vs our timeout.
+      if (isAbortError(err)) {
+        const causedByTimeout = timeoutController.signal.aborted;
+        const causedByExternal = externalSignal?.aborted ?? false;
+        if (causedByExternal) {
+          throw HttpError.fromCause('aborted', errorMessages, err);
+        }
+        if (causedByTimeout && attempt < retries) {
+          await sleep(backoffDelay(retryDelay, attempt));
+          attempt++;
+          continue;
+        }
+        throw HttpError.fromCause('timeout', errorMessages, err);
+      }
+
+      // Network error (DNS failure, refused connection, etc.) — retry if budget remains.
+      if (attempt < retries) {
+        await sleep(backoffDelay(retryDelay, attempt));
+        attempt++;
+        continue;
+      }
+      throw HttpError.fromCause('network', errorMessages, err);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function backoffDelay(base: number, attempt: number): number {
+  // Exponential backoff: base, 2×base, 4×base, … capped at 30s.
+  return Math.min(base * 2 ** attempt, 30_000);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isAbortError(err: unknown): boolean {
+  return (
+    err instanceof DOMException && err.name === 'AbortError'
+  ) || (
+    err instanceof Error && err.name === 'AbortError'
+  );
+}
+
+/**
+ * Merge multiple AbortSignals into one. If any source aborts, the merged
+ * signal aborts. We hand-roll this because `AbortSignal.any()` isn't yet
+ * universal across runtimes.
+ */
+function mergeAbortSignals(
+  external: AbortSignal | undefined,
+  internal: AbortSignal,
+): AbortSignal {
+  if (!external) return internal;
+  if (external.aborted) return external;
+
+  const controller = new AbortController();
+  const onAbort = (signal: AbortSignal) => () => controller.abort(signal.reason);
+  external.addEventListener('abort', onAbort(external), { once: true });
+  internal.addEventListener('abort', onAbort(internal), { once: true });
+  return controller.signal;
+}
+
+async function parseResponseBody<T>(response: Response): Promise<T> {
+  // 204 No Content — return null cast as T. Callers should type accordingly.
+  if (response.status === 204) return null as T;
+
+  const contentType = response.headers.get('content-type') ?? '';
+  if (contentType.includes('application/json')) {
+    return (await response.json()) as T;
+  }
+  if (contentType.startsWith('text/')) {
+    return (await response.text()) as T;
+  }
+  // Binary or unknown — return the raw Blob. Caller decides.
+  return (await response.blob()) as unknown as T;
+}

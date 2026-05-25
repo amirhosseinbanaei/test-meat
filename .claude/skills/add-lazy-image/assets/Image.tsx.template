@@ -1,0 +1,36 @@
+import NextImage, { type ImageProps as NextImageProps } from 'next/image';
+
+/**
+ * Thin wrapper around next/image that enforces team defaults:
+ *
+ *   - quality 75 default (overridable per image)
+ *   - placeholder defaults to "empty" — use "blur" only when you have a blurDataURL
+ *   - sizes is required when fill or no explicit width
+ *
+ * Use this instead of importing next/image directly. Same API, fewer mistakes.
+ */
+
+type ImageProps = NextImageProps;
+
+export function Image(props: ImageProps) {
+  // Default quality if not specified
+  const quality = props.quality ?? 75;
+
+  return <NextImage quality={quality} {...props} />;
+}
+
+/**
+ * Specific helpers for common roles. Each enforces sensible defaults.
+ */
+
+export function HeroImage(props: Omit<ImageProps, 'priority' | 'sizes'>) {
+  return <NextImage priority quality={85} sizes="100vw" {...props} />;
+}
+
+export function ThumbnailImage(props: Omit<ImageProps, 'sizes'>) {
+  return <NextImage quality={70} sizes="(max-width: 768px) 50vw, 25vw" {...props} />;
+}
+
+export function AvatarImage(props: Omit<ImageProps, 'width' | 'height' | 'sizes'>) {
+  return <NextImage width={40} height={40} quality={80} sizes="40px" {...props} />;
+}

@@ -1,0 +1,83 @@
+'use client';
+
+/**
+ * Drop-zone Client Component.
+ *
+ * Wraps `react-dropzone` with the FE team's defaults:
+ *   - Tailwind styling consistent with shadcn.
+ *   - Keyboard focus styles.
+ *   - File-type and size validation done locally before any network call.
+ *   - Calls back the parent with the accepted files; the parent decides what
+ *     to do with them (compress, crop, upload).
+ *
+ * Customisation points:
+ *   - `accept`            — MIME mapping, e.g. `{ 'image/*': [] }`.
+ *   - `maxSizeMb`         — soft cap, also enforced.
+ *   - `multiple`          — single or many.
+ *   - `onAccepted(files)` — parent handler.
+ */
+
+import { useCallback } from 'react';
+import { useDropzone, type Accept, type FileRejection } from 'react-dropzone';
+import { Upload } from 'lucide-react';
+import { cn } from '@/common/lib/utils';
+
+type DropzoneProps = {
+  accept?: Accept;
+  maxSizeMb?: number;
+  multiple?: boolean;
+  onAccepted: (files: File[]) => void;
+  onRejected?: (rejections: FileRejection[]) => void;
+  className?: string;
+  children?: React.ReactNode;
+};
+
+export function Dropzone({
+  accept,
+  maxSizeMb = 10,
+  multiple = false,
+  onAccepted,
+  onRejected,
+  className,
+  children,
+}: DropzoneProps) {
+  const onDrop = useCallback(
+    (acceptedFiles: File[], rejections: FileRejection[]) => {
+      if (acceptedFiles.length > 0) onAccepted(acceptedFiles);
+      if (rejections.length > 0 && onRejected) onRejected(rejections);
+    },
+    [onAccepted, onRejected],
+  );
+
+  const { getRootProps, getInputProps, isDragActive, isFocused } = useDropzone({
+    onDrop,
+    accept,
+    maxSize: maxSizeMb * 1024 * 1024,
+    multiple,
+  });
+
+  return (
+    <div
+      {...getRootProps()}
+      className={cn(
+        'flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/30 p-8 text-center transition-colors',
+        'hover:bg-muted/50',
+        (isDragActive || isFocused) && 'border-primary bg-primary/5',
+        className,
+      )}
+    >
+      <input {...getInputProps()} />
+      {children ?? (
+        <>
+          <Upload className="mb-3 size-8 text-muted-foreground" aria-hidden />
+          <p className="text-sm font-medium">
+            {isDragActive ? 'Drop the file here' : 'Drag and drop, or click to browse'}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Up to {maxSizeMb} MB{multiple ? ' per file' : ''}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}

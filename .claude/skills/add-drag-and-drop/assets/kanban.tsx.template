@@ -1,0 +1,131 @@
+'use client';
+
+/**
+ * Kanban board — multiple columns, cards drag within and between them.
+ *
+ * Replace:
+ *   {{COMPONENT_NAME}}   PascalCase, e.g. `TasksKanban`.
+ *   {{CARD_TYPE}}        Card data shape; must include `id` and `columnId`.
+ *
+ * State shape:
+ *   columns = [{ id, title }, ...]
+ *   cards   = [{ id, columnId, title, ... }, ...]
+ *
+ * Cards belong to exactly one column. Drag updates the card's `columnId`
+ * and its position within that column.
+ */
+
+import { useState } from 'react';
+import {
+  DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors,
+  closestCenter, type DragEndEvent, type DragOverEvent,
+  pointerWithin,
+} from '@dnd-kit/core';
+import {
+  arrayMove, SortableContext, sortableKeyboardCoordinates,
+  useSortable, verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+type Column = { id: string; title: string };
+type {{CARD_TYPE}} = { id: string; columnId: string; title: string };
+
+type {{COMPONENT_NAME}}Props = {
+  columns: Column[];
+  cards: {{CARD_TYPE}}[];
+  onMove: (cards: {{CARD_TYPE}}[]) => void;
+};
+
+export default function {{COMPONENT_NAME}}({ columns, cards, onMove }: {{COMPONENT_NAME}}Props) {
+  const [localCards, setLocalCards] = useState(cards);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  // Update column membership during drag, so the visual layout updates as the
+  // user moves a card across columns.
+  const handleDragOver = (e: DragOverEvent) => {
+    const { active, over } = e;
+    if (!over) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    const activeCard = localCards.find((c) => c.id === activeId);
+    if (!activeCard) return;
+
+    const overIsColumn = columns.some((c) => c.id === overId);
+    const overCard = localCards.find((c) => c.id === overId);
+    const targetColumnId = overIsColumn ? overId : overCard?.columnId;
+    if (!targetColumnId || activeCard.columnId === targetColumnId) return;
+
+    setLocalCards((cards) =>
+      cards.map((c) => (c.id === activeId ? { ...c, columnId: targetColumnId } : c)),
+    );
+  };
+
+  const handleDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    if (activeId === overId) {
+      onMove(localCards);
+      return;
+    }
+    // If dropped on a card, reorder within the column.
+    const oldIndex = localCards.findIndex((c) => c.id === activeId);
+    const newIndex = localCards.findIndex((c) => c.id === overId);
+    const next = oldIndex !== -1 && newIndex !== -1 ? arrayMove(localCards, oldIndex, newIndex) : localCards;
+    setLocalCards(next);
+    onMove(next); // parent persists via Server Action
+  };
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={pointerWithin}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="flex gap-4 overflow-x-auto">
+        {columns.map((col) => {
+          const cardsInColumn = localCards.filter((c) => c.columnId === col.id);
+          return (
+            <ColumnDroppable key={col.id} column={col} cards={cardsInColumn} />
+          );
+        })}
+      </div>
+    </DndContext>
+  );
+}
+
+function ColumnDroppable({ column, cards }: { column: Column; cards: {{CARD_TYPE}}[] }) {
+  return (
+    <div className="flex w-72 shrink-0 flex-col rounded-lg border bg-muted/30 p-3">
+      <h3 className="mb-3 font-medium">{column.title}</h3>
+      <SortableContext items={cards.map((c) => c.id)} strategy={verticalListSortingStrategy} id={column.id}>
+        <ul className="flex-1 space-y-2">
+          {cards.map((card) => (
+            <Card key={card.id} card={card} />
+          ))}
+        </ul>
+      </SortableContext>
+    </div>
+  );
+}
+
+function Card({ card }: { card: {{CARD_TYPE}} }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id });
+  return (
+    <li
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`cursor-grab rounded-md border bg-card p-3 text-sm ${isDragging ? 'opacity-50' : ''}`}
+    >
+      {card.title}
+    </li>
+  );
+}

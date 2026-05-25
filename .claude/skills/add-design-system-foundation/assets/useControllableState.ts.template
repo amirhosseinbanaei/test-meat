@@ -1,0 +1,85 @@
+'use client';
+
+import { useCallback, useRef, useState } from 'react';
+
+/**
+ * The controlled-vs-uncontrolled state pattern, used by every ds/ component
+ * that exposes a `value` / `defaultValue` / `onChange` triple.
+ *
+ *   const [value, setValue] = useControllableState({
+ *     prop: props.value,
+ *     defaultProp: props.defaultValue,
+ *     onChange: props.onChange,
+ *   });
+ *
+ * - If `prop` is defined → controlled mode. setValue calls onChange; internal state ignored.
+ * - If `prop` is undefined → uncontrolled mode. setValue updates internal state AND calls onChange.
+ *
+ * The hook never flips between modes mid-lifecycle (React contract). Same as Radix's
+ * internal useControllableState — vendored here so ds/ components don't reach into ui/.
+ */
+
+interface UseControllableStateParams<T> {
+  prop?: T | undefined;
+  defaultProp?: T | undefined;
+  onChange?: (value: T) => void;
+}
+
+type SetStateFn<T> = (prevState?: T) => T;
+
+export function useControllableState<T>({
+  prop,
+  defaultProp,
+  onChange = noop,
+}: UseControllableStateParams<T>): [T | undefined, (next: T | SetStateFn<T>) => void] {
+  const [uncontrolledProp, setUncontrolledProp] = useUncontrolledState({ defaultProp, onChange });
+  const isControlled = prop !== undefined;
+  const value = isControlled ? prop : uncontrolledProp;
+
+  // Stable reference to onChange.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  const setValue = useCallback(
+    (nextValue: T | SetStateFn<T>) => {
+      if (isControlled) {
+        const setter = nextValue as SetStateFn<T>;
+        const next = typeof nextValue === 'function' ? setter(prop) : nextValue;
+        if (next !== prop) onChangeRef.current(next as T);
+      } else {
+        setUncontrolledProp(nextValue);
+      }
+    },
+    [isControlled, prop, setUncontrolledProp],
+  );
+
+  return [value, setValue];
+}
+
+function useUncontrolledState<T>({
+  defaultProp,
+  onChange,
+}: Omit<UseControllableStateParams<T>, 'prop'>) {
+  const [value, setValue] = useState<T | undefined>(defaultProp);
+  const prevValueRef = useRef(value);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  const set = useCallback(
+    (next: T | SetStateFn<T> | undefined) => {
+      setValue((prev) => {
+        const resolved = typeof next === 'function' ? (next as SetStateFn<T>)(prev) : next;
+        if (resolved !== prevValueRef.current) {
+          prevValueRef.current = resolved as T;
+          onChangeRef.current?.(resolved as T);
+        }
+        return resolved;
+      });
+    },
+    [],
+  );
+
+  return [value, set] as const;
+}
+
+function noop() {}

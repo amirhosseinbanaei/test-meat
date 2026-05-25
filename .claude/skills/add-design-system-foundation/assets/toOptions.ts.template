@@ -1,0 +1,36 @@
+import type { InputOption } from '@/common/types/input-option';
+
+/**
+ * Convert any array into `InputOption[]`. The locked path for building option lists
+ * for Select, Combobox, RadioGroup, etc.
+ *
+ *   const cityOptions = toOptions(cities, c => c.name, c => c.id);
+ *
+ *   const userOptions = toOptions(
+ *     users,
+ *     u => u.fullName,
+ *     u => u.id,
+ *     u => ({ avatarUrl: u.avatar, role: u.role }),
+ *   );
+ *
+ * Never hand-build `[{ label, value }, ...]` arrays in component JSX. Always go through
+ * this — it keeps option-construction consistent across the project.
+ */
+export function toOptions<TItem, TValue = string>(
+  items: readonly TItem[] | null | undefined,
+  getLabel: (item: TItem, index: number) => string,
+  getValue: (item: TItem, index: number) => TValue,
+  getMeta?: (item: TItem, index: number) => Record<string, unknown>,
+): InputOption<TValue>[] {
+  if (!items) return [];
+  return items.map((item, index) => {
+    const opt: InputOption<TValue> = {
+      label: getLabel(item, index),
+      value: getValue(item, index),
+    };
+    if (getMeta) {
+      opt.meta = getMeta(item, index);
+    }
+    return opt;
+  });
+}

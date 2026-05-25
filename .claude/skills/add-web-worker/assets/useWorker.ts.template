@@ -1,0 +1,54 @@
+'use client';
+
+import { useEffect, useMemo, useState, useRef } from 'react';
+import { wrap, type WorkerApi, type RpcClient } from '@/common/lib/worker-rpc';
+
+/**
+ * Owns the lifecycle of a Web Worker — creates it lazily, wraps it with the
+ * RPC client, terminates on unmount. Tracks a busy flag for UI use.
+ *
+ *   const { call, busy, terminate } = useWorker<MyApi>(
+ *     () => new Worker(new URL('@/modules/x/workers/my.worker.ts', import.meta.url), { type: 'module' })
+ *   );
+ *
+ *   const result = await call('parse', text);
+ *
+ * The factory is called once (per mount). Don't put state into it — it should
+ * just construct a Worker and return it.
+ */
+export function useWorker<T extends WorkerApi>(
+  workerFactory: () => Worker,
+): {
+  call: RpcClient<T>['call'];
+  busy: boolean;
+  terminate: () => void;
+} {
+  const [busy, setBusy] = useState(false);
+  const pendingCount = useRef(0);
+  // Factory is captured once on first render — intentional for compiler.
+  const factoryRef = useRef(workerFactory);
+
+  const client = useMemo(() => {
+    const worker = factoryRef.current();
+    return wrap<T>(worker);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      client.terminate();
+    };
+  }, [client]);
+
+  const call: RpcClient<T>['call'] = async (method, ...args) => {
+    pendingCount.current++;
+    setBusy(true);
+    try {
+      return await client.call(method, ...args);
+    } finally {
+      pendingCount.current--;
+      if (pendingCount.current === 0) setBusy(false);
+    }
+  };
+
+  return { call, busy, terminate: client.terminate };
+}

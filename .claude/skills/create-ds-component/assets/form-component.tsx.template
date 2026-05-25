@@ -1,0 +1,61 @@
+'use client';
+
+import { type ComponentPropsWithRef } from 'react';
+import { type FieldValues, type Path, useFormContext } from 'react-hook-form';
+import { {{ComponentName}} } from '@/common/components/ds/{{ComponentName}}';
+import {
+  FormControl,
+  FormField,
+  FormItem,
+  FormMessage,
+  FormDescription,
+} from '@/common/components/form/Form';
+
+/**
+ * RHF-connected wrapper around {{ComponentName}}.
+ *
+ *   <Form{{ComponentName}}<FormValues>
+ *     name="fieldName"
+ *     label="..."
+ *     placeholder="..."
+ *   />
+ *
+ * Inherits all {{ComponentName}} props except `name` (RHF uses `name` for the
+ * field path; the ds component's name attr would conflict). Validation errors
+ * from RHF render via FormMessage automatically.
+ */
+
+export interface Form{{ComponentName}}Props<TFormSchema extends FieldValues>
+  extends Omit<ComponentPropsWithRef<typeof {{ComponentName}}>, 'name' | 'error'> {
+  /** RHF field path. Required. */
+  name: Path<TFormSchema>;
+}
+
+export function Form{{ComponentName}}<TFormSchema extends FieldValues>({
+  name,
+  description,
+  ...props
+}: Form{{ComponentName}}Props<TFormSchema>) {
+  const form = useFormContext<TFormSchema>();
+
+  return (
+    <FormField
+      control={form.control}
+      name={name}
+      render={({ field }) => (
+        <FormItem>
+          <FormControl>
+            <{{ComponentName}}
+              value={field.value}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+              {...props}
+            />
+          </FormControl>
+          {description && <FormDescription>{description}</FormDescription>}
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+}

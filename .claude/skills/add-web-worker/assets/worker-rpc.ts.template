@@ -1,0 +1,160 @@
+/**
+ * Tiny typed-RPC wrapper for Web Workers.
+ *
+ * Inspired by Comlink but ~50 lines instead of a 5KB dependency. The locked
+ * stack avoids adding a dep when the standard postMessage pattern is small.
+ *
+ * Worker side:
+ *   import { expose } from '@/common/lib/worker-rpc';
+ *   const api = { parse(text: string) { ... }, ... };
+ *   export type MyApi = typeof api;
+ *   expose(api);
+ *
+ * Host side (via useWorker hook):
+ *   const { call } = useWorker<MyApi>(() => new Worker(...));
+ *   const result = await call('parse', text);
+ */
+
+// ---------------------------------------------------------------------------
+// Worker side: expose an API
+// ---------------------------------------------------------------------------
+
+export type WorkerApi = Record<string, (...args: never[]) => unknown>;
+
+interface RpcRequest {
+  __rpc: 'req';
+  id: string;
+  method: string;
+  args: unknown[];
+}
+
+interface RpcResponse {
+  __rpc: 'res';
+  id: string;
+  ok: boolean;
+  value?: unknown;
+  error?: { message: string; name: string; stack?: string };
+}
+
+/**
+ * Call inside the worker module to expose the API. The worker listens for
+ * RPC requests and dispatches to the matching method.
+ */
+export function expose(api: WorkerApi): void {
+  // Only meaningful inside a worker — guard for accidental host-side imports.
+  if (typeof self === 'undefined' || typeof (self as { postMessage?: unknown }).postMessage !== 'function') {
+    return;
+  }
+
+  (self as DedicatedWorkerGlobalScope).addEventListener('message', async (event) => {
+    const data = event.data as RpcRequest;
+    if (!data || data.__rpc !== 'req') return;
+
+    const respond = (res: Omit<RpcResponse, '__rpc'>, transfer: Transferable[] = []) => {
+      const message: RpcResponse = { __rpc: 'res', ...res };
+      (self as DedicatedWorkerGlobalScope).postMessage(message, transfer);
+    };
+
+    const method = api[data.method];
+    if (typeof method !== 'function') {
+      respond({
+        id: data.id,
+        ok: false,
+        error: { message: `Unknown method: ${data.method}`, name: 'RpcMethodError' },
+      });
+      return;
+    }
+
+    try {
+      const result = await (method as (...args: unknown[]) => unknown)(...data.args);
+      // If result is { value, transfer }, treat as transferables hint.
+      if (isTransferableResult(result)) {
+        respond({ id: data.id, ok: true, value: result.value }, result.transfer);
+      } else {
+        respond({ id: data.id, ok: true, value: result });
+      }
+    } catch (err) {
+      const e = err as Error;
+      respond({
+        id: data.id,
+        ok: false,
+        error: { message: e?.message ?? String(err), name: e?.name ?? 'Error', stack: e?.stack },
+      });
+    }
+  });
+}
+
+interface TransferableResult<T> {
+  value: T;
+  transfer: Transferable[];
+}
+
+function isTransferableResult(v: unknown): v is TransferableResult<unknown> {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    'value' in v &&
+    'transfer' in v &&
+    Array.isArray((v as TransferableResult<unknown>).transfer)
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Host side: wrap a worker into a typed RPC client
+// ---------------------------------------------------------------------------
+
+export interface RpcClient<T extends WorkerApi> {
+  /** Type-safe RPC call. Awaits a response from the worker. */
+  call: <K extends keyof T & string>(
+    method: K,
+    ...args: Parameters<T[K]>
+  ) => Promise<Awaited<ReturnType<T[K]>>>;
+  /** Terminate the worker. */
+  terminate: () => void;
+}
+
+export function wrap<T extends WorkerApi>(worker: Worker): RpcClient<T> {
+  const pending = new Map<string, { resolve: (v: unknown) => void; reject: (e: unknown) => void }>();
+
+  worker.addEventListener('message', (event) => {
+    const data = event.data as RpcResponse;
+    if (!data || data.__rpc !== 'res') return;
+    const handler = pending.get(data.id);
+    if (!handler) return;
+    pending.delete(data.id);
+    if (data.ok) {
+      handler.resolve(data.value);
+    } else {
+      const error = new Error(data.error?.message ?? 'Worker call failed');
+      error.name = data.error?.name ?? 'WorkerError';
+      if (data.error?.stack) error.stack = data.error.stack;
+      handler.reject(error);
+    }
+  });
+
+  worker.addEventListener('error', (event) => {
+    // Worker-level error (uncaught in worker). Reject all pending.
+    const err = new Error(event.message || 'Worker error');
+    err.name = 'WorkerCrash';
+    for (const handler of pending.values()) handler.reject(err);
+    pending.clear();
+  });
+
+  return {
+    call: <K extends keyof T & string>(method: K, ...args: Parameters<T[K]>) => {
+      return new Promise<Awaited<ReturnType<T[K]>>>((resolve, reject) => {
+        const id = crypto.randomUUID();
+        pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
+        const message: RpcRequest = { __rpc: 'req', id, method, args };
+        worker.postMessage(message);
+      });
+    },
+    terminate: () => {
+      worker.terminate();
+      for (const handler of pending.values()) {
+        handler.reject(new Error('Worker terminated'));
+      }
+      pending.clear();
+    },
+  };
+}

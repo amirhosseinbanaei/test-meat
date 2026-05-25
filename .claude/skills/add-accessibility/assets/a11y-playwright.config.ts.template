@@ -1,0 +1,39 @@
+import { defineConfig, devices } from '@playwright/test';
+
+/**
+ * Playwright config dedicated to accessibility tests. Run separately from
+ * the main E2E suite so a failing a11y check doesn't mask a functional
+ * regression and vice versa.
+ *
+ *   npm run test:a11y
+ *
+ * Tests live in `tests/a11y/*.spec.ts` and use the axe-playwright integration.
+ * See `references/keyboard-and-screen-reader.md` for the test author's playbook.
+ */
+
+export default defineConfig({
+  testDir: './tests/a11y',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  reporter: process.env.CI ? 'github' : 'list',
+
+  use: {
+    baseURL: process.env.BASE_URL || 'http://localhost:3000',
+    trace: 'on-first-retry',
+  },
+
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'mobile-chrome', use: { ...devices['Pixel 5'] } },
+  ],
+
+  webServer: process.env.CI
+    ? undefined  // Assume CI starts the server separately.
+    : {
+        command: 'npm run build && npm run start',
+        port: 3000,
+        reuseExistingServer: true,
+        timeout: 120_000,
+      },
+});

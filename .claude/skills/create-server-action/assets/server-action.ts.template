@@ -1,0 +1,100 @@
+'use server';
+
+/**
+ * Server Action — runs on the server, callable directly from a Client Component.
+ *
+ * Replace placeholders:
+ *   {{ACTION_NAME}}    camelCase name, e.g. `createComment`.
+ *   {{SCHEMA_NAME}}    camelCase Zod schema name, e.g. `createCommentSchema`.
+ *
+ * Rules:
+ *   - `'use server'` MUST be the first line of the file.
+ *   - Validate every input with Zod. Form data crosses the trust boundary;
+ *     treat it as hostile. This applies whether the form on the client used
+ *     RHF + Zod or React 19 native — the server MUST re-validate.
+ *   - Return a discriminated union (`{ ok: true, data }` | `{ ok: false, error, fieldErrors? }`).
+ *     Do NOT throw for expected validation failures — throws bypass the form's state.
+ *   - Throws are reserved for unexpected errors. They will surface in the segment's
+ *     `error.tsx` boundary.
+ *   - Use `revalidateTag(tag, cacheLifeProfile)` after a successful write. The
+ *     single-argument form is gone in Next.js 16.
+ *   - Use `redirect(...)` from `next/navigation` after a successful write that should
+ *     change the URL. `redirect` throws — never put it inside a try/catch.
+ *
+ * SCHEMA LOCATION
+ *   When the same schema is used by both the form and the action (which is the
+ *   normal case), keep it in `src/schemas/<name>.ts` and import here AND in the
+ *   form. One schema, two consumers.
+ */
+
+import { z } from 'zod';
+import { revalidateTag } from 'next/cache';
+// import { redirect } from 'next/navigation';
+// import { {{SCHEMA_NAME}} } from '@/schemas/...';
+
+// If the schema isn't shared, define it here:
+const {{SCHEMA_NAME}} = z.object({
+  // Fill in fields with user-friendly error messages:
+  // title: z.string().min(1, 'Title is required.'),
+});
+
+type {{ACTION_NAME}}Input = z.infer<typeof {{SCHEMA_NAME}}>;
+
+type {{ACTION_NAME}}State =
+  | { ok: true; data: { /* success payload */ } }
+  | {
+      ok: false;
+      error: string;
+      fieldErrors?: Partial<Record<keyof {{ACTION_NAME}}Input, string>>;
+    };
+
+export async function {{ACTION_NAME}}(
+  _prevState: {{ACTION_NAME}}State | null,
+  formData: FormData,
+): Promise<{{ACTION_NAME}}State> {
+  // 1) Parse the form data through Zod.
+  //    `safeParse` returns a result object — no throw — so we can map errors
+  //    back to the form.
+  const parsed = {{SCHEMA_NAME}}.safeParse(Object.fromEntries(formData));
+
+  if (!parsed.success) {
+    const fieldErrors: NonNullable<Extract<{{ACTION_NAME}}State, { ok: false }>['fieldErrors']> = {};
+    for (const issue of parsed.error.issues) {
+      const key = issue.path[0];
+      if (typeof key === 'string' && !(key in fieldErrors)) {
+        (fieldErrors as Record<string, string>)[key] = issue.message;
+      }
+    }
+    return {
+      ok: false,
+      error: 'Please correct the highlighted fields.',
+      fieldErrors,
+    };
+  }
+
+  // `parsed.data` is now strongly typed as {{ACTION_NAME}}Input.
+  // const input = parsed.data;
+
+  // 2) Authorise. Get the current user, check permissions.
+  // const user = await requireUser();
+
+  // 3) Perform the mutation against the separate backend.
+  //    Use the api-client which forwards the access token automatically.
+  // try {
+  //   await postJson('/some-endpoint', input);
+  // } catch (err) {
+  //   if (err instanceof BackendApiError && err.status === 409) {
+  //     return { ok: false, error: 'That already exists.', fieldErrors: { title: 'Already used.' } };
+  //   }
+  //   throw err; // unexpected → error boundary
+  // }
+
+  // 4) Revalidate cached data that this mutation invalidated.
+  // revalidateTag('example-tag', 'default');
+
+  // 5) Return success state (or call redirect()).
+  return {
+    ok: true,
+    data: {},
+  };
+}

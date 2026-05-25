@@ -1,0 +1,117 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Button } from '@/common/components/ui/button';
+
+/**
+ * Mounted once in `app/layout.tsx`. Two responsibilities:
+ *
+ * 1. Capture the `beforeinstallprompt` event and let the user install via a
+ *    small in-app prompt instead of the browser's mini-infobar.
+ * 2. Detect when a new Service Worker is ready and offer to reload.
+ *
+ * Both flows are quiet — they show only when there's something to do.
+ */
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
+export function PwaUpdater() {
+  const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
+  const [updateReady, setUpdateReady] = useState(false);
+  const [waitingReg, setWaitingReg] = useState<ServiceWorkerRegistration | null>(null);
+
+  // Capture the install prompt event so we can trigger it from a UI button.
+  useEffect(() => {
+    const onBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setInstallEvent(e as BeforeInstallPromptEvent);
+    };
+    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+  }, []);
+
+  // Watch the Service Worker for a new version waiting to activate.
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+
+    let cancelled = false;
+
+    navigator.serviceWorker.getRegistration().then((reg) => {
+      if (!reg || cancelled) return;
+
+      const checkWaiting = () => {
+        if (reg.waiting) {
+          setWaitingReg(reg);
+          setUpdateReady(true);
+        }
+      };
+
+      // Already waiting on mount?
+      checkWaiting();
+
+      // New SW installed and waiting?
+      reg.addEventListener('updatefound', () => {
+        const installing = reg.installing;
+        installing?.addEventListener('statechange', () => {
+          if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+            setWaitingReg(reg);
+            setUpdateReady(true);
+          }
+        });
+      });
+
+      // Existing controller swapped?
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installEvent) return;
+    await installEvent.prompt();
+    await installEvent.userChoice;
+    setInstallEvent(null);
+  };
+
+  const handleUpdate = () => {
+    waitingReg?.waiting?.postMessage({ type: 'SKIP_WAITING' });
+    // The controllerchange listener triggers the reload.
+  };
+
+  // Don't render anything if there's nothing to show.
+  if (!installEvent && !updateReady) return null;
+
+  return (
+    <div className="fixed inset-x-0 bottom-4 z-50 mx-auto flex w-fit max-w-[calc(100vw-2rem)] items-center gap-3 rounded-full border bg-background px-4 py-2 shadow-md">
+      {updateReady ? (
+        <>
+          <span className="text-sm">A new version is available.</span>
+          <Button size="sm" onClick={handleUpdate}>
+            Reload
+          </Button>
+        </>
+      ) : installEvent ? (
+        <>
+          <span className="text-sm">Install this app for a faster experience.</span>
+          <Button size="sm" onClick={handleInstall}>
+            Install
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setInstallEvent(null)}>
+            Not now
+          </Button>
+        </>
+      ) : null}
+    </div>
+  );
+}

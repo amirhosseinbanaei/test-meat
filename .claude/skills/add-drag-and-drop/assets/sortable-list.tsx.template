@@ -1,0 +1,102 @@
+'use client';
+
+/**
+ * Sortable list — single container, items can be reordered.
+ *
+ * Replace:
+ *   {{COMPONENT_NAME}}   PascalCase, e.g. `TaskSortableList`.
+ *   {{ITEM_TYPE}}        Row data shape; must include a stable `id` field.
+ *
+ * Accessibility: dnd-kit handles keyboard reordering automatically. Press
+ * Tab to the drag handle, Space to lift, Arrow keys to move, Space/Enter to drop.
+ */
+
+import { useState } from 'react';
+import {
+  DndContext, closestCenter, KeyboardSensor, PointerSensor,
+  useSensor, useSensors, type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove, SortableContext, sortableKeyboardCoordinates,
+  useSortable, verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical } from 'lucide-react';
+import { cn } from '@/common/lib/utils';
+
+type {{COMPONENT_NAME}}Props = {
+  items: {{ITEM_TYPE}}[];
+  onReorder: (next: {{ITEM_TYPE}}[]) => void;
+  renderItem: (item: {{ITEM_TYPE}}) => React.ReactNode;
+};
+
+export default function {{COMPONENT_NAME}}({ items, onReorder, renderItem }: {{COMPONENT_NAME}}Props) {
+  const [localItems, setLocalItems] = useState(items);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      // Prevent accidental drags during a normal click.
+      activationConstraint: { distance: 5 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const handleDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const oldIndex = localItems.findIndex((i) => i.id === active.id);
+    const newIndex = localItems.findIndex((i) => i.id === over.id);
+    const next = arrayMove(localItems, oldIndex, newIndex);
+    setLocalItems(next);
+    onReorder(next); // parent persists via Server Action
+  };
+
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={localItems.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+        <ul className="space-y-2">
+          {localItems.map((item) => (
+            <SortableItem key={item.id} id={item.id}>
+              {renderItem(item)}
+            </SortableItem>
+          ))}
+        </ul>
+      </SortableContext>
+    </DndContext>
+  );
+}
+
+function SortableItem({ id, children }: { id: string; children: React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        'flex items-center gap-2 rounded-md border bg-card p-3',
+        isDragging && 'opacity-50',
+      )}
+    >
+      {/* Drag handle — only this region grabs the item. The rest of the row
+          stays clickable (links, action buttons inside the row). */}
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        className="cursor-grab text-muted-foreground hover:text-foreground"
+        aria-label="Drag to reorder"
+      >
+        <GripVertical className="size-4" />
+      </button>
+      <div className="flex-1">{children}</div>
+    </li>
+  );
+}

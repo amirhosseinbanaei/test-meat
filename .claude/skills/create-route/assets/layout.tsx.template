@@ -1,0 +1,36 @@
+/**
+ * Layout — Server Component by default. Wraps the segment and its children.
+ *
+ * Replace placeholders:
+ *   {{COMPONENT_NAME}}   PascalCase name, e.g. `BlogLayout`.
+ *   {{PARAMS_TYPE}}      Shape of the route params for this segment.
+ *                        For static layouts: `Record<string, never>`.
+ *
+ * Rules:
+ *   - Layouts preserve state across navigations *within* the segment. Use them for shells,
+ *     not for per-page chrome that changes between pages.
+ *   - `children` is required and must be rendered exactly once.
+ *   - Layouts do NOT receive `searchParams` — only `params`.
+ *   - `params` is a Promise — `await` it before reading anything.
+ */
+
+import type { ReactNode } from 'react';
+
+type LayoutProps = {
+  children: ReactNode;
+  params: Promise<{{PARAMS_TYPE}}>;
+};
+
+export default async function {{COMPONENT_NAME}}({
+  children,
+  params,
+}: LayoutProps) {
+  const _params = await params;
+
+  return (
+    <section>
+      {/* Layout chrome goes here — nav, sidebar, header for this segment. */}
+      {children}
+    </section>
+  );
+}

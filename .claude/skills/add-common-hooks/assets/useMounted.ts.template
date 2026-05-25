@@ -1,0 +1,25 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
+/**
+ * `false` on the server and the first client render; `true` afterwards.
+ *
+ * Use this to avoid hydration mismatches when a component would render
+ * different content on the server vs. the client:
+ *
+ *   const mounted = useMounted();
+ *   if (!mounted) return null;          // or render a skeleton
+ *   return <SomethingThatNeedsWindow />;
+ *
+ * The component renders the same content on the server and the first
+ * client pass, then re-renders with the real content. React's hydration
+ * is happy because both passes match.
+ */
+export function useMounted(): boolean {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  return mounted;
+}

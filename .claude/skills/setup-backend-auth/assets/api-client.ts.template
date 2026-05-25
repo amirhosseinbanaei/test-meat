@@ -1,0 +1,136 @@
+/**
+ * Backend API client.
+ *
+ * Wraps `fetch` with three behaviours:
+ *   1. Prepends the backend base URL.
+ *   2. Attaches the access token from the cookie as `Authorization: Bearer …`.
+ *   3. On 401, attempts ONE refresh against the backend's refresh endpoint.
+ *      If the refresh succeeds, the original request is retried. If not, the
+ *      session is cleared and the caller gets the 401.
+ *
+ * This module is server-only — it reads HTTP-only cookies. Client Components
+ * should fetch through Route Handlers (or, more commonly, through Server
+ * Actions and let RSC handle reads).
+ *
+ * Rules:
+ *   - Never log token values. Never include them in errors.
+ *   - Never trust the JWT body for authorisation decisions — only the backend
+ *     decides. We only `decodeJwt` to peek at `exp` for UX.
+ */
+
+import 'server-only';
+import { env } from '@/common/lib/env';
+import {
+  getAccessToken,
+  getRefreshToken,
+  setSession,
+  clearSession,
+} from './session';
+
+const REFRESH_PATH = '/auth/refresh';
+
+type RequestOptions = Omit<RequestInit, 'body'> & {
+  /** JSON body — will be stringified and the right Content-Type added. */
+  json?: unknown;
+  /** Already-stringified body / FormData / etc. — bypasses json handling. */
+  body?: BodyInit;
+  /** Don't attach the access token on this request (e.g. the login call itself). */
+  unauthenticated?: boolean;
+  /** Skip the auto-refresh on 401 (used internally by the refresh flow itself). */
+  noRefresh?: boolean;
+};
+
+export class BackendApiError extends Error {
+  constructor(public status: number, public bodyText: string) {
+    super(`Backend API error: ${status}`);
+    this.name = 'BackendApiError';
+  }
+}
+
+/**
+ * Low-level call. Most code should use the typed helpers below.
+ */
+export async function backendFetch(path: string, opts: RequestOptions = {}): Promise<Response> {
+  const url = new URL(path, env.BACKEND_API_URL).toString();
+
+  const headers = new Headers(opts.headers ?? {});
+  let body = opts.body;
+
+  if (opts.json !== undefined) {
+    body = JSON.stringify(opts.json);
+    if (!headers.has('content-type')) headers.set('content-type', 'application/json');
+  }
+
+  if (!opts.unauthenticated) {
+    const token = await getAccessToken();
+    if (token) headers.set('authorization', `Bearer ${token}`);
+  }
+
+  const res = await fetch(url, { ...opts, headers, body });
+
+  if (res.status === 401 && !opts.noRefresh && !opts.unauthenticated) {
+    const refreshed = await tryRefresh();
+    if (refreshed) {
+      // Retry once with the new token.
+      const retryHeaders = new Headers(headers);
+      const newToken = await getAccessToken();
+      if (newToken) retryHeaders.set('authorization', `Bearer ${newToken}`);
+      return fetch(url, { ...opts, headers: retryHeaders, body });
+    }
+    // Refresh failed — caller will see the 401.
+    await clearSession();
+  }
+
+  return res;
+}
+
+/**
+ * JSON helpers. `T` is the expected response shape — usually validated with Zod
+ * at the call site. The api-client does not validate; that's the caller's job.
+ */
+export async function getJson<T = unknown>(path: string, opts: RequestOptions = {}): Promise<T> {
+  const res = await backendFetch(path, { ...opts, method: 'GET' });
+  if (!res.ok) throw new BackendApiError(res.status, await res.text());
+  return res.json() as Promise<T>;
+}
+
+export async function postJson<T = unknown>(path: string, json: unknown, opts: RequestOptions = {}): Promise<T> {
+  const res = await backendFetch(path, { ...opts, method: 'POST', json });
+  if (!res.ok) throw new BackendApiError(res.status, await res.text());
+  return res.json() as Promise<T>;
+}
+
+// ---------------------------------------------------------------------------
+// Refresh flow
+// ---------------------------------------------------------------------------
+
+async function tryRefresh(): Promise<boolean> {
+  const refreshToken = await getRefreshToken();
+  if (!refreshToken) return false;
+
+  try {
+    const res = await backendFetch(REFRESH_PATH, {
+      method: 'POST',
+      json: { refreshToken },
+      unauthenticated: true, // refresh call doesn't use the (expired) access token
+      noRefresh: true,        // prevent infinite recursion
+    });
+    if (!res.ok) return false;
+
+    const data = (await res.json()) as {
+      accessToken?: string;
+      refreshToken?: string;
+      expiresAt?: number;
+    };
+    if (!data.accessToken || !data.refreshToken) return false;
+
+    await setSession({
+      accessToken: data.accessToken,
+      refreshToken: data.refreshToken,
+      expiresAt: data.expiresAt,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}

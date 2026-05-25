@@ -1,0 +1,26 @@
+'use client';
+
+import { useEffect, useRef } from 'react';
+
+/**
+ * `setTimeout` with proper cleanup and latest-callback handling.
+ *
+ *   useTimeout(() => setShowToast(false), 3_000);
+ *
+ * Pass `null` to skip:
+ *
+ *   useTimeout(() => doThing(), shouldRun ? 1_000 : null);
+ */
+export function useTimeout(callback: () => void, delay: number | null): void {
+  const savedCallback = useRef(callback);
+
+  useEffect(() => {
+    savedCallback.current = callback;
+  }, [callback]);
+
+  useEffect(() => {
+    if (delay === null) return;
+    const id = setTimeout(() => savedCallback.current(), delay);
+    return () => clearTimeout(id);
+  }, [delay]);
+}

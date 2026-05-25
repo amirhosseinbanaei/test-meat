@@ -1,0 +1,22 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
+/**
+ * Returns a debounced version of `value` that updates only after `delay` ms
+ * of stability. Useful for search inputs, autosave triggers.
+ *
+ *   const [query, setQuery] = useState('');
+ *   const debouncedQuery = useDebouncedValue(query, 300);
+ *   useEffect(() => fetchResults(debouncedQuery), [debouncedQuery]);
+ */
+export function useDebouncedValue<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState<T>(value);
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(id);
+  }, [value, delay]);
+
+  return debounced;
+}

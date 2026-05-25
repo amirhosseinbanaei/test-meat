@@ -1,0 +1,49 @@
+# eslint.config.mjs patch — register jsx-a11y
+
+Add the following to `eslint.config.mjs`. Order: after `eslint-plugin-react-hooks`, before any Next.js config.
+
+```js
+import jsxA11y from 'eslint-plugin-jsx-a11y';
+
+export default [
+  // ... existing config blocks ...
+
+  // Accessibility — non-negotiable. Strict ruleset.
+  {
+    files: ['**/*.{tsx,jsx}'],
+    plugins: { 'jsx-a11y': jsxA11y },
+    rules: {
+      ...jsxA11y.configs.strict.rules,
+
+      // Project-specific overrides — keep this list short and justified.
+      // Each line below is a deliberate exception; add reasoning as a comment.
+
+      // shadcn's <Slot> pattern: child element provides the actual interactive role.
+      // This rule fires false positives. The Radix primitives handle a11y correctly.
+      'jsx-a11y/no-noninteractive-element-interactions': ['error', {
+        handlers: ['onClick', 'onMouseDown', 'onMouseUp', 'onKeyPress', 'onKeyDown', 'onKeyUp'],
+        body: [],
+      }],
+
+      // Anchors are routinely rendered with onClick + href for client routing.
+      // The Next.js <Link> handles this correctly — accept it.
+      'jsx-a11y/anchor-is-valid': ['error', {
+        components: ['Link'],
+        specialLink: ['hrefLeft', 'hrefRight'],
+        aspects: ['invalidHref', 'preferButton'],
+      }],
+    },
+  },
+];
+```
+
+That's it. Save, restart your editor's ESLint server, errors appear in `LoginForm.tsx` lines that need attention.
+
+If a rule is firing on a pattern that's genuinely correct, document the exception:
+
+```tsx
+{/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- Pure presentational click target; aria-hidden surrounding */}
+<div onClick={...} />
+```
+
+Per-line disables require a reason after the `--`. CI rejects bare disables. (Configure via `eslint-comments` if not already on.)

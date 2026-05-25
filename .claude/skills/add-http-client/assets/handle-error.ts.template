@@ -1,0 +1,123 @@
+/**
+ * `handleApiError` — global error normalizer.
+ *
+ * Takes anything thrown (HttpError, plain Error, unknown) and returns a
+ * uniform `HandledError` object suitable for:
+ *   - toast notifications
+ *   - logging / Sentry
+ *   - error UI state
+ *
+ * Always call this at the boundary between "thrown error" and "user-visible
+ * message". Don't display `err.message` directly — let the handler decide.
+ *
+ * Examples:
+ *
+ *   try {
+ *     await http('/api/users');
+ *   } catch (err) {
+ *     const { message, status } = handleApiError(err);
+ *     toast.error(message);
+ *   }
+ *
+ *   // Override at the call site when the default message doesn't fit:
+ *   const { message } = handleApiError(err, "We couldn't delete this user.");
+ */
+
+import { HttpError } from './http-types';
+
+export interface HandledError {
+  /** User-facing message, ready to display. */
+  message: string;
+  /** HTTP status, or 0 for non-HTTP failures. */
+  status: number;
+  /** Structured error details (server body or original error). */
+  details: unknown;
+  /** Whether the error came from our HTTP client (vs. an unrelated throw). */
+  isHttpError: boolean;
+}
+
+/**
+ * Normalize any thrown value into a `HandledError`.
+ *
+ * @param error          The thing thrown. Typically an `HttpError` from
+ *                       `http()` or `api-client`, but accepts anything.
+ * @param customMessage  When provided, overrides the auto-derived message.
+ *                       Use this when the call site has a more specific phrase
+ *                       than the generic per-status message.
+ */
+export function handleApiError(
+  error: unknown,
+  customMessage?: string,
+): HandledError {
+  if (error instanceof HttpError) {
+    return {
+      message: customMessage ?? error.message,
+      status: error.status,
+      details: error.details,
+      isHttpError: true,
+    };
+  }
+
+  if (error instanceof Error) {
+    return {
+      message: customMessage ?? error.message,
+      status: 0,
+      details: { name: error.name, stack: error.stack },
+      isHttpError: false,
+    };
+  }
+
+  // Anything else — strings thrown directly, plain objects, undefined.
+  return {
+    message: customMessage ?? 'An unexpected error occurred.',
+    status: 0,
+    details: error,
+    isHttpError: false,
+  };
+}
+
+/**
+ * Convenience: check whether a thrown value is a specific HTTP status.
+ *
+ *   if (isHttpStatus(err, 404)) {
+ *     // It's a 404 specifically.
+ *   }
+ *
+ *   if (isHttpStatus(err, [401, 403])) {
+ *     // It's a 401 OR a 403.
+ *   }
+ */
+export function isHttpStatus(error: unknown, status: number | number[]): boolean {
+  if (!(error instanceof HttpError)) return false;
+  return Array.isArray(status) ? status.includes(error.status) : error.status === status;
+}
+
+/**
+ * Convenience: extract validation errors from a 422 response.
+ *
+ * Many backends return validation errors as `{ errors: { field: 'message' } }`
+ * or `{ details: { field: 'message' } }`. This pulls them out into a plain
+ * record so a form can map them onto fields.
+ *
+ * Returns `null` if the error isn't a 422 or doesn't carry a field map.
+ */
+export function extractFieldErrors(error: unknown): Record<string, string> | null {
+  if (!(error instanceof HttpError) || error.status !== 422) return null;
+  const details = error.details;
+  if (!details || typeof details !== 'object') return null;
+
+  const source =
+    'errors' in details && typeof (details as { errors: unknown }).errors === 'object'
+      ? (details as { errors: Record<string, unknown> }).errors
+      : 'fieldErrors' in details && typeof (details as { fieldErrors: unknown }).fieldErrors === 'object'
+      ? (details as { fieldErrors: Record<string, unknown> }).fieldErrors
+      : null;
+
+  if (!source) return null;
+
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(source)) {
+    out[key] = Array.isArray(value) ? String(value[0] ?? '') : String(value);
+  }
+  return out;
+}

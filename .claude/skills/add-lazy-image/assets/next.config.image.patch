@@ -1,0 +1,57 @@
+# next.config.ts patch — image configuration
+
+Add the `images` block to `next.config.ts`:
+
+```ts
+import type { NextConfig } from 'next';
+
+const nextConfig: NextConfig = {
+  reactCompiler: true,
+
+  images: {
+    // Locked format preference order
+    formats: ['image/avif', 'image/webp'],
+
+    // Explicit allowed image domains. Add per project.
+    // For external image sources, use remotePatterns:
+    remotePatterns: [
+      // Examples (uncomment and adjust per project):
+      // { protocol: 'https', hostname: 'images.unsplash.com' },
+      // { protocol: 'https', hostname: 'cdn.example.com', pathname: '/images/**' },
+    ],
+
+    // Locked device sizes — these control srcSet generation
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+
+    // Locked cache TTL — 1 day for remote images
+    minimumCacheTTL: 60 * 60 * 24,
+
+    // Don't allow SVG via next/image unless you trust the source —
+    // SVGs can carry scripts. Use raw <img> or inline for SVG.
+    dangerouslyAllowSVG: false,
+  },
+};
+
+export default nextConfig;
+```
+
+## Why these settings
+
+- **`formats`**: AVIF first — 30% smaller than WebP at same quality. WebP fallback for browsers without AVIF.
+- **`deviceSizes`**: covers common breakpoints from mobile portrait through 4K.
+- **`imageSizes`**: small sizes for icons and thumbnails. Combined with `deviceSizes`, this is what's used for srcSet.
+- **`minimumCacheTTL`**: 1 day. Long enough to cache effectively, short enough to update images on change.
+- **`dangerouslyAllowSVG: false`**: SVG via next/image is a known security risk if SVG sources aren't trusted. Locked off; use inline SVG for icons.
+
+## For projects with external image sources
+
+Add the source domains explicitly via `remotePatterns`. Don't use `domains` (deprecated).
+
+Each project's `remotePatterns` list:
+
+- Image CDN (Cloudinary, imgix, Cloudflare Images, etc.)
+- User-uploaded image storage (S3 bucket URL pattern, Supabase Storage URL pattern)
+- Third-party image sources (Unsplash, Pexels, etc., where applicable)
+
+Don't use wildcards — list each pattern explicitly. `remotePatterns: [{ hostname: '**' }]` is a major security hole (open redirect via Image Optimization).

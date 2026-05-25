@@ -1,0 +1,60 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+
+/**
+ * Reactive sessionStorage. Returns [value, set, remove].
+ *
+ * Same shape as `useLocalStorage`, but values are scoped to the tab/window
+ * and disappear when it's closed. There is NO cross-tab sync for
+ * sessionStorage by design — each tab has its own store.
+ */
+export function useSessionStorage<T>(
+  key: string,
+  initialValue: T,
+): [T, (next: T | ((prev: T) => T)) => void, () => void] {
+  const [value, setValue] = useState<T>(() => readFrom(key, initialValue));
+
+  useEffect(() => {
+    setValue(readFrom(key, initialValue));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  const set = useCallback(
+    (next: T | ((prev: T) => T)) => {
+      setValue((prev) => {
+        const resolved =
+          typeof next === 'function' ? (next as (p: T) => T)(prev) : next;
+        try {
+          window.sessionStorage.setItem(key, JSON.stringify(resolved));
+        } catch {
+          // Quota / private browsing.
+        }
+        return resolved;
+      });
+    },
+    [key],
+  );
+
+  const remove = useCallback(() => {
+    try {
+      window.sessionStorage.removeItem(key);
+    } catch {
+      // ignore
+    }
+    setValue(initialValue);
+  }, [key, initialValue]);
+
+  return [value, set, remove];
+}
+
+function readFrom<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    if (raw === null) return fallback;
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}

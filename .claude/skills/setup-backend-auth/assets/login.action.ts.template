@@ -1,0 +1,80 @@
+'use server';
+
+/**
+ * Login Server Action.
+ *
+ * Flow:
+ *   1. Validate the form input with Zod.
+ *   2. POST credentials to the backend's login endpoint.
+ *   3. Store the returned tokens as HTTP-only cookies.
+ *   4. Redirect to the intended page (or `/`).
+ *
+ * Returns a discriminated union on failure so the form can display field errors
+ * without losing the user's input.
+ */
+
+import { z } from 'zod';
+import { redirect } from 'next/navigation';
+import { setSession } from '@/common/services/session';
+import { postJson, BackendApiError } from '@/common/services/api-client';
+
+const loginSchema = z.object({
+  email: z.string().email('Enter a valid email address.'),
+  password: z.string().min(1, 'Password is required.'),
+  next: z.string().optional(), // optional return URL
+});
+
+const loginResponseSchema = z.object({
+  accessToken: z.string(),
+  refreshToken: z.string(),
+  expiresAt: z.number().optional(),
+});
+
+export type LoginState =
+  | { ok: true }
+  | {
+      ok: false;
+      error: string;
+      fieldErrors?: Partial<Record<keyof z.infer<typeof loginSchema>, string>>;
+    };
+
+export async function login(
+  _prevState: LoginState | null,
+  formData: FormData,
+): Promise<LoginState> {
+  const parsed = loginSchema.safeParse({
+    email: formData.get('email'),
+    password: formData.get('password'),
+    next: formData.get('next') || undefined,
+  });
+
+  if (!parsed.success) {
+    const fieldErrors: LoginState['fieldErrors'] = {};
+    for (const issue of parsed.error.issues) {
+      const key = issue.path[0];
+      if (typeof key === 'string' && !(key in fieldErrors)) {
+        (fieldErrors as Record<string, string>)[key] = issue.message;
+      }
+    }
+    return { ok: false, error: 'Please correct the highlighted fields.', fieldErrors };
+  }
+
+  try {
+    const data = await postJson<unknown>(
+      '/auth/login',
+      { email: parsed.data.email, password: parsed.data.password },
+      { unauthenticated: true },
+    );
+    const tokens = loginResponseSchema.parse(data);
+    await setSession(tokens);
+  } catch (err) {
+    if (err instanceof BackendApiError && (err.status === 401 || err.status === 403)) {
+      return { ok: false, error: 'Invalid email or password.' };
+    }
+    // Unexpected — let it bubble to the error boundary.
+    throw err;
+  }
+
+  // Successful login — redirect outside try/catch (redirect() throws internally).
+  redirect(parsed.data.next ?? '/');
+}

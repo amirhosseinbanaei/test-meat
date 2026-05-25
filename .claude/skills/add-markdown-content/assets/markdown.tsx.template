@@ -1,0 +1,62 @@
+/**
+ * Markdown renderer.
+ *
+ * Server Component — renders on the server, ships zero client JS. Use for any
+ * page that displays markdown source (docs, AI summaries, external content).
+ *
+ * For blog posts authored in Tiptap, use the JSON renderer from
+ * `add-rich-text-editor` instead. This renderer is for genuine markdown source.
+ *
+ * Security:
+ *   - HTML inside the markdown is DISABLED by default (`allow_html` prop not set).
+ *     Anything that looks like raw HTML in the source will be rendered as text.
+ *   - GFM-flavoured autolinks, tables, task lists, and strikethrough are on.
+ *   - Links open in the same tab. To open external links in a new tab, override
+ *     the `a` renderer (see references/markdown-rendering.md).
+ */
+
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { cn } from '@/common/lib/utils';
+
+type MarkdownProps = {
+  children: string;
+  /**
+   * Only set to true when the markdown SOURCE is fully trusted (your own docs
+   * files at build time). Never for user input or fetched content.
+   */
+  allowHtml?: boolean;
+  className?: string;
+};
+
+export function Markdown({ children, allowHtml = false, className }: MarkdownProps) {
+  return (
+    <div className={cn('prose prose-neutral dark:prose-invert max-w-none', className)}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        // `skipHtml` (boolean) is the OPPOSITE of `allowHtml`.
+        skipHtml={!allowHtml}
+        components={{
+          // Open external links in a new tab, keep internal links in the same tab.
+          a: ({ href, children, ...props }) => {
+            const isExternal = href?.startsWith('http');
+            return (
+              <a
+                href={href}
+                target={isExternal ? '_blank' : undefined}
+                rel={isExternal ? 'noopener noreferrer' : undefined}
+                {...props}
+              >
+                {children}
+              </a>
+            );
+          },
+          // Add per-element overrides here as needed. The typography plugin
+          // styles everything by default; only override when you need to.
+        }}
+      >
+        {children}
+      </ReactMarkdown>
+    </div>
+  );
+}

@@ -1,0 +1,64 @@
+'use client';
+
+/**
+ * Form Client Component — wires a Server Action to a <form> using React 19's
+ * useActionState + useFormStatus pattern.
+ *
+ * Replace placeholders:
+ *   {{FORM_COMPONENT_NAME}}   PascalCase, e.g. `CommentForm`.
+ *   {{ACTION_IMPORT_PATH}}    Path to the action, e.g. `@/actions/create-comment`.
+ *   {{ACTION_NAME}}           camelCase action name matching the import.
+ *
+ * Rules:
+ *   - The submit button MUST be its own child component that calls `useFormStatus`.
+ *     `useFormStatus` reads from the nearest enclosing <form> — it does not work
+ *     in the same component that renders the <form>.
+ *   - Do not maintain a parallel useState for the form values unless you have a
+ *     specific reason (e.g. cross-field validation that needs to run on each keystroke).
+ *     The action receives the FormData directly.
+ *   - For optimistic UI, uncomment the useOptimistic block. The optimistic value
+ *     is shown immediately; React rolls it back if the action rejects.
+ */
+
+import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
+// import { useOptimistic } from 'react';
+import { {{ACTION_NAME}} } from '{{ACTION_IMPORT_PATH}}';
+
+function SubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" disabled={pending}>
+      {pending ? 'Submitting…' : 'Submit'}
+    </button>
+  );
+}
+
+export default function {{FORM_COMPONENT_NAME}}() {
+  const [state, formAction] = useActionState({{ACTION_NAME}}, null);
+
+  // Optimistic UI — uncomment when needed.
+  //
+  // const [optimisticItems, addOptimisticItem] = useOptimistic<Item[], Item>(
+  //   /* baseItems */ [],
+  //   (current, next) => [...current, next],
+  // );
+
+  return (
+    <form action={formAction}>
+      {/* Form fields go here. Use `name` attributes — the action reads FormData. */}
+      {/* Example:
+        <label>
+          Comment
+          <textarea name="comment" required />
+        </label>
+      */}
+
+      {state && !state.ok && (
+        <p role="alert">{state.error}</p>
+      )}
+
+      <SubmitButton />
+    </form>
+  );
+}

@@ -1,0 +1,135 @@
+'use client';
+
+/**
+ * Column definitions example.
+ *
+ * Replace the User shape and column accessors with your row type.
+ *
+ * Each column has:
+ *   - `accessorKey` — which field of the row to use, OR
+ *   - `id` — a synthetic column (selection checkbox, actions menu).
+ *
+ * Cell renderers can return anything — strings, JSX, formatted dates, action menus.
+ */
+
+import { type ColumnDef } from '@tanstack/react-table';
+import { ArrowUpDown, MoreHorizontal } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+
+// Example row type — replace with your domain type.
+export type User = {
+  id: string;
+  email: string;
+  name: string;
+  role: 'admin' | 'member' | 'viewer';
+  createdAt: string; // ISO
+};
+
+export const userColumns: ColumnDef<User>[] = [
+  // Selection column — checkbox in header (select all) and each row.
+  {
+    id: 'select',
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected()
+            ? true
+            : table.getIsSomePageRowsSelected()
+              ? 'indeterminate'
+              : false
+        }
+        onCheckedChange={(v) => table.toggleAllPageRowsSelected(!!v)}
+        aria-label="Select all rows on this page"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(v) => row.toggleSelected(!!v)}
+        aria-label={`Select row for ${row.original.email}`}
+      />
+    ),
+    enableSorting: false,
+  },
+
+  // Sortable column — clicking the header toggles asc/desc.
+  {
+    accessorKey: 'email',
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+        className="-ml-3 h-8"
+      >
+        Email
+        <ArrowUpDown className="ml-2 size-3.5" />
+      </Button>
+    ),
+  },
+
+  {
+    accessorKey: 'name',
+    header: 'Name',
+  },
+
+  {
+    accessorKey: 'role',
+    header: 'Role',
+    // Custom cell renderer: format the role nicely.
+    cell: ({ row }) => {
+      const role = row.original.role;
+      return <span className="rounded-full bg-muted px-2 py-0.5 text-xs">{role}</span>;
+    },
+    // Filter by role: returns true if the row's role is in the selected filter values.
+    filterFn: (row, columnId, value) => {
+      const v = row.getValue(columnId) as string;
+      return (value as string[]).includes(v);
+    },
+  },
+
+  {
+    accessorKey: 'createdAt',
+    header: 'Created',
+    cell: ({ row }) => {
+      // Use the FE team's central dates module.
+      // import { formatDate } from '@/common/lib/dates';
+      // return formatDate(new Date(row.original.createdAt), { dateStyle: 'medium' });
+      return new Date(row.original.createdAt).toLocaleDateString();
+    },
+  },
+
+  // Row actions menu.
+  {
+    id: 'actions',
+    enableSorting: false,
+    cell: ({ row }) => {
+      const user = row.original;
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="size-8 p-0">
+              <MoreHorizontal className="size-4" />
+              <span className="sr-only">Open menu</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => navigator.clipboard.writeText(user.id)}>
+              Copy ID
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem>View details</DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive focus:text-destructive">
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      );
+    },
+  },
+];

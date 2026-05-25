@@ -1,0 +1,43 @@
+/**
+ * Zustand store: {{STORE_NAME}}
+ *
+ * Replace:
+ *   {{STORE_NAME}}        camelCase store name, e.g. `theme`, `sidebar`.
+ *   {{STORE_HOOK_NAME}}   PascalCase, e.g. `useThemeStore`.
+ *
+ * Rules:
+ *   - Always type the state. The action signatures fall out of that.
+ *   - Always call the store via SELECTORS at the call site:
+ *       const open = useSidebarStore(s => s.open);
+ *     NOT:
+ *       const { open } = useSidebarStore();
+ *     Bare usage subscribes to the WHOLE store and re-renders on every change.
+ *   - Actions are stable function references (set inside the store creator),
+ *     so passing them to children is fine — no useCallback needed.
+ *   - This file must be importable from Client Components only. Don't import
+ *     it into a Server Component.
+ */
+
+import { create } from 'zustand';
+
+type {{STORE_NAME}}State = {
+  // State fields — replace with the real shape:
+  // open: boolean;
+  // count: number;
+
+  // Actions — keep names verb-first:
+  // toggle: () => void;
+  // setCount: (n: number) => void;
+  // reset: () => void;
+};
+
+export const {{STORE_HOOK_NAME}} = create<{{STORE_NAME}}State>((set, _get) => ({
+  // Initial state:
+  // open: false,
+  // count: 0,
+
+  // Actions:
+  // toggle:   () => set((s) => ({ open: !s.open })),
+  // setCount: (n) => set({ count: n }),
+  // reset:    () => set({ open: false, count: 0 }),
+}));

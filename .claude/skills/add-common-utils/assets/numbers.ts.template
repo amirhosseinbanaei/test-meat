@@ -1,0 +1,141 @@
+/**
+ * Number utilities — formatting, parsing, math helpers.
+ *
+ * Formatting uses native `Intl.NumberFormat`. Pair with `common/lib/dates.ts`
+ * for time formatting; same `Intl`-driven approach.
+ */
+
+// ---------------------------------------------------------------------------
+// Formatting
+// ---------------------------------------------------------------------------
+
+/**
+ * Format a number with the user's locale.
+ *
+ *   formatNumber(1234.56)        // "1,234.56" (en) / "1.234,56" (de) / "۱٬۲۳۴٫۵۶" (fa-IR)
+ *   formatNumber(1234.56, { locale: 'fa-IR' })
+ *   formatNumber(1234.56, { maximumFractionDigits: 0 })  // "1,235"
+ */
+export function formatNumber(
+  value: number,
+  options: Intl.NumberFormatOptions & { locale?: string } = {},
+): string {
+  const { locale, ...rest } = options;
+  return new Intl.NumberFormat(locale, rest).format(value);
+}
+
+/**
+ * Format as currency.
+ *
+ *   formatCurrency(99.95, 'USD')             // "$99.95"
+ *   formatCurrency(99.95, 'EUR', { locale: 'de-DE' }) // "99,95 €"
+ */
+export function formatCurrency(
+  value: number,
+  currency: string,
+  options: Intl.NumberFormatOptions & { locale?: string } = {},
+): string {
+  return formatNumber(value, { ...options, style: 'currency', currency });
+}
+
+/**
+ * Format as percent. Pass a decimal (0.42 → 42%).
+ *
+ *   formatPercent(0.4275)                // "43%"
+ *   formatPercent(0.4275, { fractionDigits: 1 })  // "42.8%"
+ */
+export function formatPercent(
+  value: number,
+  options: { locale?: string; fractionDigits?: number } = {},
+): string {
+  return formatNumber(value, {
+    locale: options.locale,
+    style: 'percent',
+    minimumFractionDigits: options.fractionDigits ?? 0,
+    maximumFractionDigits: options.fractionDigits ?? 0,
+  });
+}
+
+/**
+ * Compact / short notation.
+ *
+ *   formatCompact(1234)       // "1.2K"
+ *   formatCompact(1_500_000)  // "1.5M"
+ */
+export function formatCompact(value: number, options: { locale?: string } = {}): string {
+  return formatNumber(value, { locale: options.locale, notation: 'compact' });
+}
+
+// ---------------------------------------------------------------------------
+// Parsing / sanitising
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse a number from a user-typed string.
+ * Strips currency symbols, spaces, and grouping separators. Accepts a single
+ * dot or comma as the decimal point.
+ *
+ *   parseNumber('$1,234.56')   // 1234.56
+ *   parseNumber('1.234,56 €')  // 1234.56  (European format)
+ *   parseNumber('abc')         // null
+ *
+ * For locale-aware parsing of a specific locale, pass `decimalSeparator`.
+ */
+export function parseNumber(
+  input: string,
+  options: { decimalSeparator?: '.' | ',' | 'auto' } = {},
+): number | null {
+  if (typeof input !== 'string') return null;
+  const decimalSeparator = options.decimalSeparator ?? 'auto';
+
+  // Strip everything except digits, separators, sign.
+  const cleaned = input.replace(/[^\d.,-]/g, '');
+  if (!cleaned) return null;
+
+  let normalised: string;
+  if (decimalSeparator === '.') {
+    normalised = cleaned.replace(/,/g, '');
+  } else if (decimalSeparator === ',') {
+    normalised = cleaned.replace(/\./g, '').replace(',', '.');
+  } else {
+    // 'auto' — heuristic: last separator is the decimal.
+    const lastDot = cleaned.lastIndexOf('.');
+    const lastComma = cleaned.lastIndexOf(',');
+    if (lastDot === -1 && lastComma === -1) {
+      normalised = cleaned;
+    } else if (lastDot > lastComma) {
+      normalised = cleaned.replace(/,/g, '');
+    } else {
+      normalised = cleaned.replace(/\./g, '').replace(',', '.');
+    }
+  }
+
+  const n = Number(normalised);
+  return Number.isFinite(n) ? n : null;
+}
+
+// ---------------------------------------------------------------------------
+// Math
+// ---------------------------------------------------------------------------
+
+/** Clamp `n` to the inclusive range [min, max]. */
+export function clamp(n: number, min: number, max: number): number {
+  return Math.min(Math.max(n, min), max);
+}
+
+/** Round to a given number of decimal places. */
+export function roundTo(n: number, decimals: number): number {
+  const factor = 10 ** decimals;
+  return Math.round((n + Number.EPSILON) * factor) / factor;
+}
+
+/** Inclusive [0, 1] → returns `n` mapped from [fromMin, fromMax] to [0, 1]. */
+export function normalize(n: number, fromMin: number, fromMax: number): number {
+  if (fromMax === fromMin) return 0;
+  return clamp((n - fromMin) / (fromMax - fromMin), 0, 1);
+}
+
+/** Inclusive linear interpolation. `t` in [0, 1]. */
+export function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * clamp(t, 0, 1);
+}

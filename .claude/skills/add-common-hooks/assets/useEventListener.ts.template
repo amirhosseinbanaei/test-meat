@@ -1,0 +1,74 @@
+'use client';
+
+import { useEffect, useRef, type RefObject } from 'react';
+
+/**
+ * Typed event listener with proper cleanup and a stable handler.
+ *
+ * Three overloads to keep DOM event types accurate:
+ *   - window event
+ *   - document event
+ *   - element event (via ref)
+ *
+ *   useEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+ *   useEventListener('visibilitychange', refetch, { target: document });
+ *   useEventListener('click', onClick, { target: buttonRef });
+ *
+ * The handler can change between renders — only the latest is invoked.
+ */
+
+// Window events (default target).
+export function useEventListener<K extends keyof WindowEventMap>(
+  event: K,
+  handler: (event: WindowEventMap[K]) => void,
+  options?: { target?: undefined } & AddEventListenerOptions,
+): void;
+
+// Document events.
+export function useEventListener<K extends keyof DocumentEventMap>(
+  event: K,
+  handler: (event: DocumentEventMap[K]) => void,
+  options: { target: Document } & AddEventListenerOptions,
+): void;
+
+// Element events (via ref).
+export function useEventListener<K extends keyof HTMLElementEventMap, T extends HTMLElement>(
+  event: K,
+  handler: (event: HTMLElementEventMap[K]) => void,
+  options: { target: RefObject<T | null> } & AddEventListenerOptions,
+): void;
+
+// Implementation.
+export function useEventListener(
+  event: string,
+  handler: (event: Event) => void,
+  options?: {
+    target?: Document | RefObject<HTMLElement | null>;
+    capture?: boolean;
+    once?: boolean;
+    passive?: boolean;
+  },
+): void {
+  const handlerRef = useRef(handler);
+  useEffect(() => {
+    handlerRef.current = handler;
+  }, [handler]);
+
+  useEffect(() => {
+    const target =
+      !options?.target ? window
+      : options.target instanceof Document ? options.target
+      : options.target.current;
+    if (!target) return;
+
+    const listener = (e: Event) => handlerRef.current(e);
+    const listenerOptions: AddEventListenerOptions = {
+      capture: options?.capture,
+      once: options?.once,
+      passive: options?.passive,
+    };
+
+    target.addEventListener(event, listener, listenerOptions);
+    return () => target.removeEventListener(event, listener, listenerOptions);
+  }, [event, options?.target, options?.capture, options?.once, options?.passive]);
+}

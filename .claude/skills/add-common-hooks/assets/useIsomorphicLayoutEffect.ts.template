@@ -1,0 +1,21 @@
+'use client';
+
+import { useEffect, useLayoutEffect } from 'react';
+
+/**
+ * `useLayoutEffect` on the client, `useEffect` on the server.
+ *
+ * React warns when `useLayoutEffect` runs during SSR (it can't measure layout
+ * on the server). This swaps to `useEffect` in that case to suppress the
+ * warning while preserving the synchronous-after-DOM behaviour on the client.
+ *
+ *   useIsomorphicLayoutEffect(() => {
+ *     const rect = elementRef.current?.getBoundingClientRect();
+ *     // ...
+ *   }, []);
+ *
+ * Use when you need to measure or mutate the DOM before the browser paints.
+ * For typical side effects (fetching, subscriptions), prefer `useEffect`.
+ */
+export const useIsomorphicLayoutEffect =
+  typeof window !== 'undefined' ? useLayoutEffect : useEffect;

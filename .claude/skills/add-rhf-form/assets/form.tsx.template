@@ -1,0 +1,77 @@
+'use client';
+
+/**
+ * Complex form: {{FORM_COMPONENT_NAME}}
+ *
+ * Uses React Hook Form + Zod resolver for client-side validation, then hands
+ * the validated values to a Server Action for the actual mutation.
+ *
+ * Replace:
+ *   {{FORM_COMPONENT_NAME}}   PascalCase, e.g. `OnboardingForm`.
+ *   {{SCHEMA_IMPORT_PATH}}    Path to the Zod schema, e.g. `@/schemas/onboarding`.
+ *   {{SCHEMA_NAME}}           Exported schema name.
+ *   {{INPUT_TYPE}}            Exported input type name.
+ *   {{ACTION_IMPORT_PATH}}    Path to the Server Action.
+ *   {{ACTION_NAME}}           Server Action function name.
+ *
+ * Rules:
+ *   - Use the SAME Zod schema on both sides. The form validates with it for
+ *     UX; the Server Action re-validates with it for security.
+ *   - On submit, call the Server Action with the typed object. The action
+ *     should return the discriminated-union shape so we can show field errors
+ *     that came from the server (e.g. "email already in use").
+ */
+
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useState, useTransition } from 'react';
+import { {{SCHEMA_NAME}}, type {{INPUT_TYPE}} } from '{{SCHEMA_IMPORT_PATH}}';
+import { {{ACTION_NAME}} } from '{{ACTION_IMPORT_PATH}}';
+
+export default function {{FORM_COMPONENT_NAME}}() {
+  const [serverError, setServerError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const {
+    register,
+    handleSubmit,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<{{INPUT_TYPE}}>({
+    resolver: zodResolver({{SCHEMA_NAME}}),
+    mode: 'onBlur', // validate on blur; switch to 'onChange' for real-time.
+  });
+
+  const onSubmit = handleSubmit((values) => {
+    setServerError(null);
+    startTransition(async () => {
+      const result = await {{ACTION_NAME}}(values);
+      if (!result.ok) {
+        if (result.fieldErrors) {
+          for (const [field, message] of Object.entries(result.fieldErrors)) {
+            setError(field as keyof {{INPUT_TYPE}}, { type: 'server', message });
+          }
+        }
+        setServerError(result.error);
+      }
+    });
+  });
+
+  return (
+    <form onSubmit={onSubmit} noValidate>
+      {/* Replace with real fields. Pattern per field:
+        <label>
+          Name
+          <input {...register('name')} aria-invalid={!!errors.name} />
+          {errors.name && <span role="alert">{errors.name.message}</span>}
+        </label>
+      */}
+
+      {serverError && <p role="alert">{serverError}</p>}
+
+      <button type="submit" disabled={isSubmitting || pending}>
+        {isSubmitting || pending ? 'Submitting…' : 'Submit'}
+      </button>
+    </form>
+  );
+}

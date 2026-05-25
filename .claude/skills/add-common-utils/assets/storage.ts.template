@@ -1,0 +1,139 @@
+/**
+ * Typed storage primitives — localStorage and sessionStorage.
+ *
+ * Two access patterns:
+ *   1. `storageItem(...)`        — define once, get/set/remove typed value
+ *   2. `local.get` / `local.set` — quick one-off reads/writes
+ *
+ * SSR-safe: every function is a no-op (returning defaults) on the server.
+ * Hydration-safe: read on the client at mount time; don't render-time-read
+ *                 if the value differs from the SSR'd initial.
+ *
+ * Optional Zod validation: pass `schema` and the read fall-back applies if the
+ * stored value doesn't match. Protects against corrupted / tampered values.
+ */
+
+import type { ZodType } from 'zod';
+
+type StorageBackend = 'local' | 'session';
+
+function getStorage(backend: StorageBackend): Storage | null {
+  if (typeof window === 'undefined') return null;
+  return backend === 'local' ? window.localStorage : window.sessionStorage;
+}
+
+// ---------------------------------------------------------------------------
+// One-off helpers
+// ---------------------------------------------------------------------------
+
+export const local = makeQuick('local');
+export const session = makeQuick('session');
+
+function makeQuick(backend: StorageBackend) {
+  return {
+    get<T>(key: string, fallback: T): T {
+      const store = getStorage(backend);
+      if (!store) return fallback;
+      try {
+        const raw = store.getItem(key);
+        if (raw === null) return fallback;
+        return JSON.parse(raw) as T;
+      } catch {
+        return fallback;
+      }
+    },
+    set(key: string, value: unknown): void {
+      const store = getStorage(backend);
+      if (!store) return;
+      try {
+        store.setItem(key, JSON.stringify(value));
+      } catch {
+        // Quota exceeded / private browsing — silently drop.
+      }
+    },
+    remove(key: string): void {
+      const store = getStorage(backend);
+      if (!store) return;
+      store.removeItem(key);
+    },
+    clear(): void {
+      const store = getStorage(backend);
+      if (!store) return;
+      store.clear();
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Typed storage items with optional Zod validation
+// ---------------------------------------------------------------------------
+
+export interface StorageItem<T> {
+  get(): T;
+  set(value: T): void;
+  remove(): void;
+  /** The storage key (useful for debugging or cross-tab listeners). */
+  readonly key: string;
+}
+
+export interface StorageItemOptions<T> {
+  key: string;
+  defaultValue: T;
+  /** Optional Zod schema. If the stored value fails validation, returns defaultValue. */
+  schema?: ZodType<T>;
+  /** Which storage to use. Default: 'local'. */
+  backend?: StorageBackend;
+}
+
+/**
+ * Define a typed storage entry. Use module-scope to share the same definition
+ * across files.
+ *
+ *   // src/common/stores/theme.ts
+ *   export const themePref = storageItem({
+ *     key: 'theme',
+ *     defaultValue: 'system' as 'light' | 'dark' | 'system',
+ *   });
+ *
+ *   // Anywhere else
+ *   import { themePref } from '@/common/stores/theme';
+ *   themePref.get();    // 'light' | 'dark' | 'system'
+ *   themePref.set('dark');
+ */
+export function storageItem<T>(opts: StorageItemOptions<T>): StorageItem<T> {
+  const { key, defaultValue, schema, backend = 'local' } = opts;
+
+  return {
+    key,
+    get(): T {
+      const store = getStorage(backend);
+      if (!store) return defaultValue;
+      try {
+        const raw = store.getItem(key);
+        if (raw === null) return defaultValue;
+        const parsed: unknown = JSON.parse(raw);
+        if (schema) {
+          const result = schema.safeParse(parsed);
+          return result.success ? result.data : defaultValue;
+        }
+        return parsed as T;
+      } catch {
+        return defaultValue;
+      }
+    },
+    set(value: T): void {
+      const store = getStorage(backend);
+      if (!store) return;
+      try {
+        store.setItem(key, JSON.stringify(value));
+      } catch {
+        // Quota / private — silently drop.
+      }
+    },
+    remove(): void {
+      const store = getStorage(backend);
+      if (!store) return;
+      store.removeItem(key);
+    },
+  };
+}

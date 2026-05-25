@@ -1,0 +1,84 @@
+/**
+ * Device / browser detection.
+ *
+ * **Important caveats:**
+ *   - User-agent detection is unreliable. Users can spoof UAs, browsers can
+ *     lie (e.g. Edge claims to be Chrome), and "mobile" detection misses tablets
+ *     and 2-in-1 devices.
+ *   - For **layout decisions** (when to switch from a side-panel to a drawer),
+ *     prefer CSS media queries or the `useMediaQuery` hook. Width and pointer
+ *     capabilities are more reliable than UA.
+ *   - For **feature detection** ("does this browser support X?"), use feature
+ *     tests, not UA. `'share' in navigator` beats `isMobile()` for "show share button".
+ *
+ * Use these helpers for:
+ *   - Analytics segmentation.
+ *   - Showing platform-specific install prompts (e.g. iOS PWA instructions).
+ *   - Non-critical UX adjustments.
+ */
+
+export type DeviceType = 'mobile' | 'tablet' | 'desktop' | 'unknown';
+
+function ua(): string {
+  if (typeof navigator === 'undefined') return '';
+  return navigator.userAgent || '';
+}
+
+/**
+ * Best-effort device category from the user-agent string.
+ * Returns `'unknown'` on the server.
+ */
+export function getDeviceType(): DeviceType {
+  const s = ua();
+  if (!s) return 'unknown';
+  if (/iPad|Android(?!.*Mobile)|Tablet/i.test(s)) return 'tablet';
+  if (/Mobi|Android|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|webOS/i.test(s)) return 'mobile';
+  return 'desktop';
+}
+
+export function isMobile(): boolean { return getDeviceType() === 'mobile'; }
+export function isTablet(): boolean { return getDeviceType() === 'tablet'; }
+export function isDesktop(): boolean { return getDeviceType() === 'desktop'; }
+
+export function isIOS(): boolean {
+  const s = ua();
+  // iPadOS 13+ reports as "Macintosh"; check touch support too.
+  return /iPad|iPhone|iPod/.test(s) || (s.includes('Mac') && isTouchDevice());
+}
+
+export function isAndroid(): boolean {
+  return /Android/i.test(ua());
+}
+
+export function isSafari(): boolean {
+  const s = ua();
+  return /Safari/.test(s) && !/Chrome|Chromium|Edg|Android/.test(s);
+}
+
+export function isChrome(): boolean {
+  const s = ua();
+  return /Chrome/.test(s) && !/Edg|OPR/.test(s);
+}
+
+export function isFirefox(): boolean {
+  return /Firefox/i.test(ua());
+}
+
+/** True if the device reports any touch input capability. */
+export function isTouchDevice(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (
+    'ontouchstart' in window ||
+    (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0)
+  );
+}
+
+/** True if the device is in a "standalone" PWA context (installed). */
+export function isStandalonePWA(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.matchMedia?.('(display-mode: standalone)').matches ||
+    // iOS-specific:
+    ('standalone' in window.navigator && (window.navigator as { standalone?: boolean }).standalone === true)
+  );
+}

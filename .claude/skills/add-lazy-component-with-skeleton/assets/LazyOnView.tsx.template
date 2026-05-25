@@ -1,0 +1,70 @@
+'use client';
+
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+
+/**
+ * Renders children only after the placeholder enters (or nears) the viewport.
+ * Pair with next/dynamic for components whose JS should also load lazily.
+ *
+ *   <LazyOnView fallback={<ChartSkeleton />} rootMargin="200px">
+ *     <RevenueChart />
+ *   </LazyOnView>
+ *
+ * The fallback dimensions matter — it reserves space so the page doesn't shift
+ * when the real component swaps in. Match the skeleton to the loaded component.
+ *
+ * rootMargin defaults to "200px" — the component starts loading when the
+ * placeholder is 200px away from the viewport edge. Tune per use case.
+ */
+
+interface LazyOnViewProps {
+  children: ReactNode;
+  fallback: ReactNode;
+  /** Pre-load when this far from the viewport. Default "200px". */
+  rootMargin?: string;
+  /** Don't load even when visible. Useful for conditional gating. */
+  disabled?: boolean;
+}
+
+export function LazyOnView({
+  children,
+  fallback,
+  rootMargin = '200px',
+  disabled = false,
+}: LazyOnViewProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(disabled);
+
+  useEffect(() => {
+    if (disabled) return;
+    if (typeof window === 'undefined') return;
+    if (!('IntersectionObserver' in window)) {
+      // Old-browser fallback: load immediately.
+      setVisible(true);
+      return;
+    }
+
+    const node = ref.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry?.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin, threshold: 0 },
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [rootMargin, disabled]);
+
+  return (
+    <div ref={ref} role={visible ? undefined : 'status'} aria-busy={!visible}>
+      {visible ? children : fallback}
+    </div>
+  );
+}

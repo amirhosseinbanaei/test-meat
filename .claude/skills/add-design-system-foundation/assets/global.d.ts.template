@@ -1,0 +1,17 @@
+import type { InputOption as _InputOption } from './input-option';
+
+/**
+ * Globally available types — no import needed at use sites.
+ *
+ * `InputOption<T>` is declared globally because every Select/Combobox/RadioGroup
+ * accepts options of this shape. Forcing an import at every consumer is friction
+ * for what's effectively a primitive of the design system.
+ *
+ * Other entries here should be similarly universal — types so foundational that
+ * importing them everywhere is noise. Be conservative: a global type is forever.
+ */
+declare global {
+  type InputOption<TValue = string> = _InputOption<TValue>;
+}
+
+export {};

@@ -1,0 +1,146 @@
+/**
+ * Array utilities. Pure, typed, immutable (don't mutate the input).
+ *
+ * For higher-level data manipulation (groupBy on millions of rows, etc.) reach
+ * for a real library. These are for the everyday cases.
+ */
+
+/**
+ * Deduplicate by a key function or property name.
+ *
+ *   uniqueBy([{ id: 1 }, { id: 2 }, { id: 1 }], 'id')
+ *     // [{ id: 1 }, { id: 2 }]
+ *
+ *   uniqueBy(['Hello', 'hi', 'HELLO'], (s) => s.toLowerCase())
+ *     // ['Hello', 'hi']
+ */
+export function uniqueBy<T, K extends keyof T>(
+  arr: readonly T[],
+  key: K | ((item: T) => unknown),
+): T[] {
+  const fn = typeof key === 'function' ? key : (item: T) => item[key];
+  const seen = new Set<unknown>();
+  const out: T[] = [];
+  for (const item of arr) {
+    const k = fn(item);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(item);
+  }
+  return out;
+}
+
+/**
+ * Group elements by a key function or property.
+ *
+ *   groupBy([{ team: 'a' }, { team: 'b' }, { team: 'a' }], 'team')
+ *     // { a: [{ team: 'a' }, { team: 'a' }], b: [{ team: 'b' }] }
+ */
+export function groupBy<T, K extends keyof T>(
+  arr: readonly T[],
+  key: K | ((item: T) => string),
+): Record<string, T[]> {
+  const fn = typeof key === 'function' ? key : (item: T) => String(item[key]);
+  const out: Record<string, T[]> = {};
+  for (const item of arr) {
+    const k = fn(item);
+    (out[k] ??= []).push(item);
+  }
+  return out;
+}
+
+/**
+ * Split into chunks of size `n`. The last chunk may be smaller.
+ *
+ *   chunk([1, 2, 3, 4, 5], 2)    // [[1, 2], [3, 4], [5]]
+ */
+export function chunk<T>(arr: readonly T[], n: number): T[][] {
+  if (n <= 0) throw new Error(`chunk: n must be > 0, got ${n}`);
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += n) {
+    out.push(arr.slice(i, i + n));
+  }
+  return out;
+}
+
+/**
+ * Split into [passing, failing] by a predicate.
+ *
+ *   partition([1, 2, 3, 4], (n) => n % 2 === 0)   // [[2, 4], [1, 3]]
+ */
+export function partition<T>(
+  arr: readonly T[],
+  predicate: (item: T, index: number) => boolean,
+): [T[], T[]] {
+  const pass: T[] = [];
+  const fail: T[] = [];
+  arr.forEach((item, i) => {
+    (predicate(item, i) ? pass : fail).push(item);
+  });
+  return [pass, fail];
+}
+
+/**
+ * Inclusive range of numbers.
+ *
+ *   range(0, 5)        // [0, 1, 2, 3, 4, 5]
+ *   range(0, 10, 2)    // [0, 2, 4, 6, 8, 10]
+ *   range(5, 1)        // [5, 4, 3, 2, 1]
+ */
+export function range(start: number, end: number, step = 1): number[] {
+  if (step <= 0) throw new Error(`range: step must be > 0, got ${step}`);
+  const out: number[] = [];
+  if (start <= end) {
+    for (let i = start; i <= end; i += step) out.push(i);
+  } else {
+    for (let i = start; i >= end; i -= step) out.push(i);
+  }
+  return out;
+}
+
+/**
+ * Remove falsy values (null, undefined, '', 0, false, NaN).
+ *
+ *   compact([1, null, 2, undefined, 3, '', 4])   // [1, 2, 3, 4]
+ *
+ * The return type narrows out `null` / `undefined` only — explicit `0` / `false`
+ * stay in the type but are removed at runtime. If you need only null-removal,
+ * use `arr.filter((x): x is NonNullable<T> => x != null)`.
+ */
+export function compact<T>(arr: readonly (T | null | undefined | false | 0 | '')[]): T[] {
+  return arr.filter(Boolean) as T[];
+}
+
+/**
+ * Last element. Returns `undefined` if empty.
+ * Useful with `noUncheckedIndexedAccess` turned on.
+ *
+ *   last([1, 2, 3])   // 3
+ *   last([])          // undefined
+ */
+export function last<T>(arr: readonly T[]): T | undefined {
+  return arr[arr.length - 1];
+}
+
+/**
+ * Shuffle a copy using Fisher–Yates. Does NOT mutate the input.
+ */
+export function shuffle<T>(arr: readonly T[]): T[] {
+  const out = arr.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+}
+
+/**
+ * Sum a list of numbers, optionally with a value extractor.
+ *
+ *   sum([1, 2, 3])                          // 6
+ *   sum(orders, (o) => o.total)             // total of all orders
+ */
+export function sum<T>(arr: readonly T[], by?: (item: T) => number): number {
+  if (!by) return (arr as readonly number[]).reduce((a, b) => a + b, 0);
+  return arr.reduce((acc, item) => acc + by(item), 0);
+}

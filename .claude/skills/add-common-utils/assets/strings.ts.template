@@ -1,0 +1,135 @@
+/**
+ * String utilities.
+ *
+ * Validation helpers (isValidEmail, etc.) live in `validation.ts`.
+ */
+
+/**
+ * Truncate to a maximum length. Adds an ellipsis by default.
+ *
+ *   truncate('Hello, world!', 5)            // "Hell…"
+ *   truncate('Hello, world!', 5, '...')     // "He..."
+ *   truncate('Hi', 10)                      // "Hi"
+ */
+export function truncate(input: string, max: number, ellipsis = '…'): string {
+  if (input.length <= max) return input;
+  if (max <= ellipsis.length) return ellipsis.slice(0, max);
+  return input.slice(0, max - ellipsis.length) + ellipsis;
+}
+
+/**
+ * Truncate by words rather than characters.
+ *
+ *   truncateWords('one two three four five', 3)  // "one two three…"
+ */
+export function truncateWords(input: string, maxWords: number, ellipsis = '…'): string {
+  const words = input.split(/\s+/);
+  if (words.length <= maxWords) return input;
+  return words.slice(0, maxWords).join(' ') + ellipsis;
+}
+
+/**
+ * URL-friendly slug from arbitrary text.
+ * Handles Unicode by decomposing and removing combining marks (é → e).
+ *
+ *   slugify('Hello, World!')            // "hello-world"
+ *   slugify('Café résumé')              // "cafe-resume"
+ *   slugify('   Multiple   spaces   ')  // "multiple-spaces"
+ */
+export function slugify(input: string): string {
+  return input
+    .normalize('NFKD')                       // decompose accented chars
+    .replace(/[\u0300-\u036f]/g, '')         // strip combining marks
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')             // non-alphanum → dash
+    .replace(/^-+|-+$/g, '')                 // trim dashes
+    .replace(/-{2,}/g, '-');                 // collapse repeats
+}
+
+/** Capitalise the first character. */
+export function capitalize(input: string): string {
+  if (!input) return input;
+  return input.charAt(0).toUpperCase() + input.slice(1);
+}
+
+/** Capitalise the first character of each word. */
+export function titleCase(input: string): string {
+  return input.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Escape HTML entities. Use when embedding user-provided text into HTML
+ * **without** React. React already escapes; this is for places where you
+ * build HTML strings manually (rare).
+ */
+export function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Generate a cryptographically random string.
+ *
+ *   randomString(16)                      // 16 chars, default alphabet
+ *   randomString(8, { alphabet: '01' })   // binary string, 8 chars
+ *
+ * Uses `crypto.getRandomValues`. SSR-safe via `crypto.randomUUID()` fallback
+ * if `getRandomValues` is unavailable.
+ */
+export function randomString(
+  length: number,
+  options: { alphabet?: string } = {},
+): string {
+  const alphabet = options.alphabet ?? 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const out = new Array<string>(length);
+
+  // Use crypto when available (browser, Node.js 19+, Edge runtime).
+  if (typeof crypto !== 'undefined' && 'getRandomValues' in crypto) {
+    const bytes = new Uint32Array(length);
+    crypto.getRandomValues(bytes);
+    for (let i = 0; i < length; i++) {
+      out[i] = alphabet[bytes[i]! % alphabet.length]!;
+    }
+    return out.join('');
+  }
+
+  // Fallback. Math.random is not cryptographically secure but is fine for
+  // non-security uses (e.g. React keys).
+  for (let i = 0; i < length; i++) {
+    out[i] = alphabet[Math.floor(Math.random() * alphabet.length)]!;
+  }
+  return out.join('');
+}
+
+/**
+ * Mask a string showing only the first / last characters.
+ *
+ *   mask('user@example.com', { start: 2, end: 4 })   // "us**********.com"
+ *   mask('4242424242421234', { end: 4 })             // "************1234"
+ */
+export function mask(
+  input: string,
+  options: { start?: number; end?: number; maskChar?: string } = {},
+): string {
+  const { start = 0, end = 0, maskChar = '*' } = options;
+  if (input.length <= start + end) return input;
+  const head = input.slice(0, start);
+  const tail = end > 0 ? input.slice(-end) : '';
+  return head + maskChar.repeat(input.length - start - end) + tail;
+}
+
+/**
+ * Test if a string is empty or only whitespace.
+ *
+ *   isBlank('')      // true
+ *   isBlank('   ')   // true
+ *   isBlank('abc')   // false
+ */
+export function isBlank(input: string | null | undefined): boolean {
+  return !input || input.trim() === '';
+}

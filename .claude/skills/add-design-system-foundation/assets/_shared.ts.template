@@ -1,0 +1,41 @@
+/**
+ * Shared CVA tokens consumed by every ds/ component's variant file.
+ *
+ * RULE: never inline these classes in a per-component variant file. Import the
+ * token. If a token needs to change, change it here once.
+ *
+ * These map to the CSS custom properties defined in globals.css under @theme.
+ */
+
+/** Core input sizing. Used by Input, Textarea, Select trigger, Combobox trigger, DatePicker trigger. */
+export const base =
+  'h-base-height min-w-base-width rounded-base-radius border border-base-border px-3 py-2 text-xs md:text-sm';
+
+/** Disabled state. Locked across all interactive ds components. */
+export const disabled =
+  'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-base-opacity';
+
+/** ARIA-driven state borders. */
+export const aria =
+  'aria-expanded:border-base-border aria-invalid:border-destructive';
+
+/** Focus visible (keyboard-focus) state. */
+export const focusVisible =
+  'focus:border-primary focus:ring-0 focus:outline-none focus-visible:border-primary focus-visible:ring-0 focus-visible:outline-none';
+
+/** Placeholder text styling. */
+export const placeholder =
+  'placeholder:text-sm placeholder:text-base-placeholder';
+
+/** Dropdown/popover panel container — shadow, animation, z-index. */
+export const popoverContent =
+  'z-50 overflow-hidden rounded-base-radius border border-base-border bg-white shadow-md ' +
+  'data-[state=open]:animate-in data-[state=closed]:animate-out ' +
+  'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 ' +
+  'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95';
+
+/** Items inside dropdowns/popovers — hover and selected states. */
+export const popoverContentItem =
+  'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none ' +
+  'hover:bg-ds-gray-200/60 data-[highlighted]:bg-ds-gray-200/60 ' +
+  'data-[disabled]:pointer-events-none data-[disabled]:opacity-base-opacity';

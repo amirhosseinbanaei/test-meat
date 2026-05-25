@@ -1,0 +1,28 @@
+/**
+ * Server Component — runs on the server. Ships zero JavaScript to the browser
+ * for this file's logic. May be `async` and may await data directly.
+ *
+ * Replace placeholders:
+ *   {{COMPONENT_NAME}}   PascalCase, e.g. `ProductCard`.
+ *   {{PROPS_TYPE}}       Inline props type. For props-less: replace with `Record<string, never>`.
+ *
+ * Rules:
+ *   - No `'use client'` directive.
+ *   - May use `async`/`await` directly.
+ *   - May fetch data (with `fetch` or via React's `cache()` wrapper for non-fetch sources).
+ *   - May NOT use `useState`, `useEffect`, any event handler, or browser APIs.
+ *   - If you need any of the above, create a Client Component leaf and render it from here.
+ *   - Do NOT add `useMemo` / `useCallback`. They don't exist on the server, and the
+ *     React Compiler memoises Client Components automatically.
+ */
+
+type Props = {{PROPS_TYPE}};
+
+export default async function {{COMPONENT_NAME}}(props: Props) {
+  // Server-side work — data fetching, computation, rendering — goes here.
+  return (
+    <div>
+      {/* Component output */}
+    </div>
+  );
+}

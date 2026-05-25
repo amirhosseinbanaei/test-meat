@@ -1,0 +1,133 @@
+'use client';
+
+/**
+ * Tiptap rich text editor.
+ *
+ * Replace:
+ *   {{EDITOR_COMPONENT_NAME}}   PascalCase, e.g. `BlogPostEditor`.
+ *
+ * Output: emits the editor's JSON state via `onChange`. The parent owns the
+ * value (controlled). On submit, the parent passes the JSON to a Server Action
+ * which stores it.
+ *
+ * Toolbar: the simplest possible — bold, italic, headings, lists, link, image.
+ * Add more buttons as needed. For a slash-command menu, see
+ * `references/blog-editor-patterns.md`.
+ */
+
+import { useEditor, EditorContent, type Editor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Link from '@tiptap/extension-link';
+import Image from '@tiptap/extension-image';
+import Placeholder from '@tiptap/extension-placeholder';
+import {
+  Bold, Italic, Heading1, Heading2, List, ListOrdered,
+  Link2, Image as ImageIcon, Undo2, Redo2,
+} from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { cn } from '@/common/lib/utils';
+
+type Json = Record<string, unknown>;
+
+type {{EDITOR_COMPONENT_NAME}}Props = {
+  value: Json | null;
+  onChange: (value: Json) => void;
+  placeholder?: string;
+  /** Called when the user clicks the image button. Should return a URL or null. */
+  onRequestImage?: () => Promise<string | null>;
+};
+
+export default function {{EDITOR_COMPONENT_NAME}}({
+  value,
+  onChange,
+  placeholder = 'Start writing…',
+  onRequestImage,
+}: {{EDITOR_COMPONENT_NAME}}Props) {
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Link.configure({ openOnClick: false, autolink: true }),
+      Image,
+      Placeholder.configure({ placeholder }),
+    ],
+    content: value ?? '',
+    onUpdate: ({ editor }) => onChange(editor.getJSON() as Json),
+    editorProps: {
+      attributes: {
+        class: 'prose prose-neutral dark:prose-invert max-w-none focus:outline-none min-h-[300px]',
+      },
+    },
+    // Required for SSR-safe initialisation in Next.js App Router.
+    immediatelyRender: false,
+  });
+
+  if (!editor) return null;
+
+  return (
+    <div className="rounded-md border bg-card">
+      <Toolbar editor={editor} onRequestImage={onRequestImage} />
+      <div className="p-4">
+        <EditorContent editor={editor} />
+      </div>
+    </div>
+  );
+}
+
+function Toolbar({
+  editor,
+  onRequestImage,
+}: {
+  editor: Editor;
+  onRequestImage?: () => Promise<string | null>;
+}) {
+  const insertImage = async () => {
+    if (!onRequestImage) return;
+    const url = await onRequestImage();
+    if (url) editor.chain().focus().setImage({ src: url }).run();
+  };
+
+  const insertLink = () => {
+    const url = window.prompt('Link URL');
+    if (url) editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-1 border-b px-2 py-1.5">
+      <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} icon={<Bold className="size-4" />} label="Bold" />
+      <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} icon={<Italic className="size-4" />} label="Italic" />
+      <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} icon={<Heading1 className="size-4" />} label="H1" />
+      <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} icon={<Heading2 className="size-4" />} label="H2" />
+      <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} icon={<List className="size-4" />} label="Bulleted list" />
+      <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} icon={<ListOrdered className="size-4" />} label="Numbered list" />
+      <ToolbarButton onClick={insertLink} active={editor.isActive('link')} icon={<Link2 className="size-4" />} label="Link" />
+      {onRequestImage && (
+        <ToolbarButton onClick={insertImage} icon={<ImageIcon className="size-4" />} label="Image" />
+      )}
+      <div className="ml-auto flex items-center gap-1">
+        <ToolbarButton onClick={() => editor.chain().focus().undo().run()} icon={<Undo2 className="size-4" />} label="Undo" />
+        <ToolbarButton onClick={() => editor.chain().focus().redo().run()} icon={<Redo2 className="size-4" />} label="Redo" />
+      </div>
+    </div>
+  );
+}
+
+function ToolbarButton({
+  onClick, active, icon, label,
+}: {
+  onClick: () => void; active?: boolean; icon: React.ReactNode; label: string;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={active ?? undefined}
+      className={cn('size-8 p-0', active && 'bg-accent text-accent-foreground')}
+    >
+      {icon}
+    </Button>
+  );
+}

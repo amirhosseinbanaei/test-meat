@@ -1,0 +1,41 @@
+/**
+ * Page — Server Component by default.
+ *
+ * Replace placeholders:
+ *   {{COMPONENT_NAME}}   PascalCase name derived from route, e.g. `BlogPostPage`.
+ *   {{PARAMS_TYPE}}      Shape of the route params. For `/blog/[slug]`: `{ slug: string }`.
+ *                        For static routes (no [param] segments): `Record<string, never>`.
+ *   {{ROUTE_LABEL}}      Human label used in fallback content, e.g. `Blog post`.
+ *
+ * Rules:
+ *   - `params` is a Promise — always `await` it.
+ *   - `searchParams` is a Promise too — `await` it before reading any key.
+ *   - No `'use client'` here. If this page needs interactivity, build a Client Component
+ *     leaf via the `create-component` skill and render it inside this Server Component.
+ */
+
+import type { Metadata } from 'next';
+
+type PageProps = {
+  params: Promise<{{PARAMS_TYPE}}>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export const metadata: Metadata = {
+  title: '{{ROUTE_LABEL}}',
+};
+
+export default async function {{COMPONENT_NAME}}({
+  params,
+  searchParams,
+}: PageProps) {
+  const _params = await params;
+  const _searchParams = await searchParams;
+
+  return (
+    <main>
+      <h1>{{ROUTE_LABEL}}</h1>
+      {/* Replace with real content. Server-side data fetching happens here. */}
+    </main>
+  );
+}

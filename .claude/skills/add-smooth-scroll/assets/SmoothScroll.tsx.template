@@ -1,0 +1,118 @@
+'use client';
+
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import Lenis from 'lenis';
+
+/**
+ * Lenis smooth-scroll provider.
+ *
+ * SAFEGUARDS (locked, do not remove):
+ *   1. prefers-reduced-motion → Lenis does not initialize. Native scroll.
+ *   2. ?lenis=off URL param → Lenis does not initialize. Native scroll.
+ *   3. Keyboard scrolling preserved (Lenis only intercepts wheel/touch).
+ *   4. Cleanup on unmount.
+ *
+ * Mount once in app/layout.tsx wrapping {children}.
+ */
+
+interface SmoothScrollProps {
+  children: ReactNode;
+  /** Lenis options override. Defaults are tuned for content sites. */
+  options?: Partial<{
+    duration: number;
+    smoothWheel: boolean;
+    wheelMultiplier: number;
+    touchMultiplier: number;
+    lerp: number;
+  }>;
+}
+
+export function SmoothScroll({ children, options }: SmoothScrollProps) {
+  const lenisRef = useRef<Lenis | null>(null);
+  const [enabled, setEnabled] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // SAFEGUARD 1: prefers-reduced-motion → bail out, use native scroll.
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reducedMotion) {
+      // Expose state so we don't render Lenis-controlled markup wrappers.
+      setEnabled(false);
+      return;
+    }
+
+    // SAFEGUARD 2: ?lenis=off kill switch.
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('lenis') === 'off') {
+      if (params.get('persist') === '1') {
+        sessionStorage.setItem('lenis-disabled', '1');
+      }
+      setEnabled(false);
+      return;
+    }
+    if (sessionStorage.getItem('lenis-disabled') === '1') {
+      setEnabled(false);
+      return;
+    }
+
+    // Initialize Lenis.
+    const lenis = new Lenis({
+      duration: options?.duration ?? 1.2,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      smoothWheel: options?.smoothWheel ?? true,
+      wheelMultiplier: options?.wheelMultiplier ?? 1,
+      touchMultiplier: options?.touchMultiplier ?? 1.5,
+      lerp: options?.lerp ?? 0.1,
+    });
+
+    lenisRef.current = lenis;
+    setEnabled(true);
+
+    let rafId = 0;
+    const raf = (time: number) => {
+      lenis.raf(time);
+      rafId = requestAnimationFrame(raf);
+    };
+    rafId = requestAnimationFrame(raf);
+
+    // SAFEGUARD 3: smooth-scroll anchor links.
+    const onAnchorClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const anchor = target.closest('a[href^="#"]') as HTMLAnchorElement | null;
+      if (!anchor) return;
+      const id = anchor.getAttribute('href');
+      if (!id || id === '#') return;
+      const el = document.querySelector(id);
+      if (!el) return;
+      e.preventDefault();
+      lenis.scrollTo(el as HTMLElement, { offset: 0, duration: 1.2 });
+    };
+    document.addEventListener('click', onAnchorClick);
+
+    // SAFEGUARD 4: focus-into-view (Tab onto offscreen element → smooth-scroll).
+    const onFocusIn = (e: FocusEvent) => {
+      const el = e.target as HTMLElement;
+      if (!el || el === document.body) return;
+      const rect = el.getBoundingClientRect();
+      const offscreen = rect.bottom < 0 || rect.top > window.innerHeight;
+      if (offscreen) {
+        lenis.scrollTo(el, { offset: -100, duration: 0.6 });
+      }
+    };
+    document.addEventListener('focusin', onFocusIn);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      document.removeEventListener('click', onAnchorClick);
+      document.removeEventListener('focusin', onFocusIn);
+      lenis.destroy();
+      lenisRef.current = null;
+    };
+  }, [options?.duration, options?.smoothWheel, options?.wheelMultiplier, options?.touchMultiplier, options?.lerp]);
+
+  // We don't wrap children in a DOM container — Lenis hooks into document scroll.
+  // The `enabled` state is for future debugging UI; currently unused in render.
+  void enabled;
+  return <>{children}</>;
+}

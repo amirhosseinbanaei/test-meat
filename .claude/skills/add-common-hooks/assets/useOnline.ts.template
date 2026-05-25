@@ -1,0 +1,30 @@
+'use client';
+
+import { useSyncExternalStore } from 'react';
+
+/**
+ * Reactive `navigator.onLine`. Updates on `online` / `offline` events.
+ *
+ *   const isOnline = useOnline();
+ *   if (!isOnline) return <OfflineBanner />;
+ *
+ * SSR: returns `true`. Caveat: `navigator.onLine` reports network *interface*
+ * state, not actual internet reachability — a user on a flaky cafe Wi-Fi may
+ * report online while requests still fail. Use this for UX hints, not for
+ * actual reachability decisions.
+ */
+export function useOnline(): boolean {
+  const subscribe = (onChange: () => void) => {
+    window.addEventListener('online', onChange);
+    window.addEventListener('offline', onChange);
+    return () => {
+      window.removeEventListener('online', onChange);
+      window.removeEventListener('offline', onChange);
+    };
+  };
+
+  const getSnapshot = () => navigator.onLine;
+  const getServerSnapshot = () => true;
+
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}

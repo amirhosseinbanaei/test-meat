@@ -1,0 +1,65 @@
+'use client';
+
+/**
+ * Server Action multipart upload hook — for small files only.
+ *
+ * Use when the file is < ~1 MB (after compression) and the convenience of
+ * "one Server Action, no presigned-URL endpoint" outweighs the cost of
+ * proxying bytes through Next.js.
+ *
+ * For larger files, use the presigned-URL hook instead.
+ *
+ * Progress: fetch's upload progress is awkward; this hook doesn't report
+ * incremental progress. If you need a progress bar, switch to the presigned
+ * flow (which uses XHR for progress events).
+ *
+ * Replace:
+ *   {{UPLOAD_ACTION}}   the Server Action that accepts FormData and uploads
+ *                       to the backend.
+ */
+
+import { useCallback, useState, useTransition } from 'react';
+// import { {{UPLOAD_ACTION}} } from '@/actions/upload-file';
+
+export type UploadActionState =
+  | { status: 'idle' }
+  | { status: 'uploading' }
+  | { status: 'done'; fileId: string; url: string }
+  | { status: 'error'; error: string };
+
+export function useUploadAction() {
+  const [state, setState] = useState<UploadActionState>({ status: 'idle' });
+  const [, startTransition] = useTransition();
+
+  const upload = useCallback((file: File) => {
+    return new Promise<{ fileId: string; url: string }>((resolve, reject) => {
+      setState({ status: 'uploading' });
+      startTransition(async () => {
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+
+          // const result = await {{UPLOAD_ACTION}}(formData);
+          const result: { ok: true; fileId: string; url: string } | { ok: false; error: string } =
+            { ok: false, error: 'Not wired up.' };
+
+          if (!result.ok) {
+            setState({ status: 'error', error: result.error });
+            reject(new Error(result.error));
+            return;
+          }
+          setState({ status: 'done', fileId: result.fileId, url: result.url });
+          resolve({ fileId: result.fileId, url: result.url });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Upload failed.';
+          setState({ status: 'error', error: message });
+          reject(err);
+        }
+      });
+    });
+  }, []);
+
+  const reset = useCallback(() => setState({ status: 'idle' }), []);
+
+  return { state, upload, reset };
+}

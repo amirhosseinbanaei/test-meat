@@ -1,0 +1,43 @@
+'use client';
+
+import { useEffect, useRef } from 'react';
+
+/**
+ * Returns a debounced callback that fires `delay` ms after the most recent
+ * call. The returned function is stable across renders — safe to pass as an
+ * event handler or to dependency arrays.
+ *
+ *   const onSearch = useDebouncedCallback((q: string) => {
+ *     fetchResults(q);
+ *   }, 300);
+ *
+ *   <input onChange={(e) => onSearch(e.target.value)} />
+ *
+ * Cancels on unmount automatically.
+ */
+export function useDebouncedCallback<F extends (...args: never[]) => unknown>(
+  callback: F,
+  delay: number,
+): (...args: Parameters<F>) => void {
+  const callbackRef = useRef(callback);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Always invoke the latest callback when the debounce fires.
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+
+  // Cancel pending invocation on unmount.
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current !== null) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  return (...args: Parameters<F>) => {
+    if (timeoutRef.current !== null) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      callbackRef.current(...args);
+    }, delay);
+  };
+}

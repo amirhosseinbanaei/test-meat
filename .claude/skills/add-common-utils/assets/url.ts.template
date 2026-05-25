@@ -1,0 +1,104 @@
+/**
+ * URL utilities — building, parsing, classifying.
+ */
+
+/**
+ * Build a URL by adding query parameters to a base. Skips `undefined`, `null`,
+ * and empty-string values. Arrays are emitted as repeated params (`?tag=a&tag=b`).
+ *
+ *   buildUrl('/api/posts', { page: 2, sort: 'new', filter: undefined })
+ *     // "/api/posts?page=2&sort=new"
+ *
+ *   buildUrl('https://api.example.com/search', { q: 'hello world', tag: ['a', 'b'] })
+ *     // "https://api.example.com/search?q=hello+world&tag=a&tag=b"
+ */
+export function buildUrl(
+  base: string,
+  params: Record<string, string | number | boolean | null | undefined | (string | number)[]> = {},
+): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === '') continue;
+    if (Array.isArray(value)) {
+      for (const v of value) {
+        if (v === undefined || v === null || v === '') continue;
+        search.append(key, String(v));
+      }
+    } else {
+      search.append(key, String(value));
+    }
+  }
+  const qs = search.toString();
+  if (!qs) return base;
+  return base.includes('?') ? `${base}&${qs}` : `${base}?${qs}`;
+}
+
+/**
+ * Parse a query string into a record.
+ * Repeated keys (`?tag=a&tag=b`) become arrays.
+ *
+ *   parseQuery('page=2&sort=new')              // { page: '2', sort: 'new' }
+ *   parseQuery('?tag=a&tag=b')                 // { tag: ['a', 'b'] }
+ *   parseQuery(window.location.search)         // typed result
+ */
+export function parseQuery(
+  input: string,
+): Record<string, string | string[]> {
+  const trimmed = input.startsWith('?') ? input.slice(1) : input;
+  const params = new URLSearchParams(trimmed);
+  const out: Record<string, string | string[]> = {};
+  for (const [key, value] of params.entries()) {
+    const existing = out[key];
+    if (existing === undefined) {
+      out[key] = value;
+    } else if (Array.isArray(existing)) {
+      existing.push(value);
+    } else {
+      out[key] = [existing, value];
+    }
+  }
+  return out;
+}
+
+/** Is the URL absolute (has a scheme)? */
+export function isAbsoluteUrl(input: string): boolean {
+  return /^([a-z][a-z0-9+.-]*:|\/\/)/i.test(input);
+}
+
+/** Is the URL external (different origin from the current page)? */
+export function isExternalUrl(input: string): boolean {
+  if (!isAbsoluteUrl(input)) return false;
+  if (typeof window === 'undefined') return true; // Server-side, assume external.
+  try {
+    const url = new URL(input);
+    return url.origin !== window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+/** Extract the domain from a URL. Returns `null` if invalid. */
+export function getDomain(input: string): string | null {
+  try {
+    return new URL(input).hostname;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Join URL path segments. Removes duplicate slashes; preserves the protocol.
+ *
+ *   joinUrl('https://api.example.com/', '/v1/', 'users')   // "https://api.example.com/v1/users"
+ *   joinUrl('/api/', '/users/', '42')                       // "/api/users/42"
+ */
+export function joinUrl(...parts: string[]): string {
+  return parts
+    .map((part, i) => {
+      if (i === 0) return part.replace(/\/+$/, '');
+      if (i === parts.length - 1) return part.replace(/^\/+/, '');
+      return part.replace(/^\/+|\/+$/g, '');
+    })
+    .filter((p) => p.length > 0)
+    .join('/');
+}

@@ -1,0 +1,25 @@
+/**
+ * The locked shape for selectable items across the design system.
+ *
+ * Used by Select, Combobox, RadioGroup (when options-driven), TagInput suggestions,
+ * SearchCommand items, and any other "list of choices" component.
+ *
+ * Never build option arrays by hand in JSX — use `toOptions()` from
+ * `@/common/utils/to-options.ts`.
+ *
+ * `meta` is intentionally `Record<string, unknown>` — payload-shape varies per use case
+ * (you might attach an icon, a disabled flag, a description, a role tag, etc.). The
+ * consumer narrows it at the point of read.
+ *
+ * NOTE: This type is also declared globally via `src/common/types/global.d.ts` so
+ * consumers can write `const options: InputOption[] = ...` without an import.
+ */
+
+export interface InputOption<TValue = string> {
+  /** Visible label shown in the UI. */
+  label: string;
+  /** Underlying value submitted / compared. */
+  value: TValue;
+  /** Optional payload — icon, description, disabled, etc. Narrow at read time. */
+  meta?: Record<string, unknown>;
+}

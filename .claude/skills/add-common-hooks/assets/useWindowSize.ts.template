@@ -1,0 +1,44 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
+export interface WindowSize {
+  width: number;
+  height: number;
+}
+
+/**
+ * Reactive window dimensions. Throttled to ~100ms — the resize event can fire
+ * dozens of times per second.
+ *
+ *   const { width, height } = useWindowSize();
+ *
+ * SSR: returns `{ width: 0, height: 0 }`. For layout decisions, prefer
+ * `useMediaQuery('(min-width: 1024px)')` — it's the right primitive for
+ * "is the viewport at least this wide".
+ */
+export function useWindowSize(): WindowSize {
+  const [size, setSize] = useState<WindowSize>(() => readSize());
+
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const onResize = () => {
+      if (timeoutId !== null) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => setSize(readSize()), 100);
+    };
+    window.addEventListener('resize', onResize);
+    // Sync once on mount in case the SSR fallback was used.
+    setSize(readSize());
+    return () => {
+      window.removeEventListener('resize', onResize);
+      if (timeoutId !== null) clearTimeout(timeoutId);
+    };
+  }, []);
+
+  return size;
+}
+
+function readSize(): WindowSize {
+  if (typeof window === 'undefined') return { width: 0, height: 0 };
+  return { width: window.innerWidth, height: window.innerHeight };
+}

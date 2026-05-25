@@ -1,0 +1,93 @@
+# Design tokens — additions to `src/app/globals.css`
+
+The DS foundation requires a set of CSS custom properties under Tailwind's `@theme`
+block. Merge the following into the existing `@theme` in `globals.css`.
+
+If your project's `globals.css` doesn't yet have an `@theme` block, add one.
+
+## What to add
+
+```css
+@import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+@theme {
+  /* -------------------------------------------------------------- */
+  /* Brand colors — replace the hex values per project's brand.     */
+  /* -------------------------------------------------------------- */
+  --color-primary: #6e45ff;            /* primary actions, focus rings */
+  --color-secondary: #ffc107;          /* secondary actions */
+  --color-destructive: #dc2626;        /* errors, destructive actions */
+  --color-muted: #f3f4f6;
+  --color-muted-foreground: #6b7280;
+
+  /* -------------------------------------------------------------- */
+  /* DS palette — generate scales for the project's brand palette.  */
+  /* These are the default Mrsanjob values; replace per project.    */
+  /* -------------------------------------------------------------- */
+  --color-ds-purple-50:  #f5f0ff;
+  --color-ds-purple-100: #ebe0ff;
+  --color-ds-purple-200: #d4c2ff;
+  --color-ds-purple-300: #b09bff;
+  --color-ds-purple-400: #8a72ff;
+  --color-ds-purple-500: #6e45ff;
+  --color-ds-purple-600: #5a36d6;
+  --color-ds-purple-700: #4b2fad;
+
+  --color-ds-yellow-200: #ffeeba;
+  --color-ds-yellow-300: #ffe28a;
+  --color-ds-yellow-400: #ffd35a;
+  --color-ds-yellow-500: #ffc107;
+  --color-ds-yellow-600: #f0b400;
+  --color-ds-yellow-700: #ffae05;
+
+  --color-ds-gray-200: #c8c8c8;
+  --color-ds-gray-300: #a8a8a8;
+  --color-ds-gray-400: #888888;
+  --color-ds-gray-500: #666666;
+  --color-ds-gray-600: #4c4c4c;
+  --color-ds-gray-700: #3a3a3a;
+  --color-ds-gray-800: #2c2c2c;
+
+  /* -------------------------------------------------------------- */
+  /* Input base tokens — used by _shared.ts variants.               */
+  /* DO NOT REMOVE: the entire ds layer depends on these.           */
+  /* -------------------------------------------------------------- */
+  --base-width: 180px;
+  --base-height: 48px;
+  --base-radius: 8px;
+  --base-opacity: 0.5;
+  --base-border: rgba(93, 93, 93, 0.5);
+  --base-text: #111111;
+  --base-placeholder: rgba(93, 93, 93, 0.5);
+}
+```
+
+## What this enables
+
+After merging, the following Tailwind utility classes are available and used in
+`_shared.ts`:
+
+- `h-base-height` — 48px input height
+- `min-w-base-width`, `w-base-width` — 180px min-width / fixed-width
+- `rounded-base-radius` — 8px corner radius
+- `opacity-base-opacity` — 0.5 for disabled states
+- `border-base-border` — input border color
+- `text-base-text`, `text-base-placeholder` — input text colors
+- `bg-ds-purple-500`, `text-ds-yellow-700`, etc. — brand palette utilities
+
+## Per-project customization
+
+The locked **structure** is non-negotiable — every project has these tokens with
+these names. The **values** are project-specific:
+
+- Replace `--color-primary` and `--color-secondary` with the project's brand colors.
+- Re-generate the `--color-ds-*` scales using your brand palette (50–700 for each
+  brand color, plus a neutral gray scale).
+- The `--base-*` tokens stay locked across projects. Inputs across all FE products
+  share the same base size, radius, opacity, etc. — this is what makes the design
+  system feel like a system.
+
+If a project genuinely needs a different input height (e.g. a data-dense admin
+panel), override at the variant level (custom `base` variant) — not by changing
+`--base-height` globally. The token represents the project's primary input size.

@@ -1,0 +1,78 @@
+'use client';
+
+/**
+ * Vertical virtualised list — fixed item height.
+ *
+ * The simplest and fastest variant. Use when every row has the same height.
+ *
+ * Replace:
+ *   {{COMPONENT_NAME}}  PascalCase, e.g. `LongCommentList`.
+ *   {{ITEM_TYPE}}       The data shape of one row.
+ *   {{ITEM_HEIGHT}}     Row height in px (e.g. 72).
+ *
+ * The scroll container is the `<div>` we render here. The virtualiser hooks
+ * into its scroll position to decide what's visible.
+ */
+
+import { useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+
+type {{COMPONENT_NAME}}Props = {
+  items: {{ITEM_TYPE}}[];
+  renderItem: (item: {{ITEM_TYPE}}, index: number) => React.ReactNode;
+  /** Container height. The scroll happens inside this. */
+  height?: number | string;
+};
+
+export default function {{COMPONENT_NAME}}({
+  items,
+  renderItem,
+  height = 600,
+}: {{COMPONENT_NAME}}Props) {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => {{ITEM_HEIGHT}},
+    // Render this many extra rows above and below the viewport for smoother
+    // scrolling. 5 is a sensible default; raise for very fast scrolling needs.
+    overscan: 5,
+  });
+
+  return (
+    <div
+      ref={parentRef}
+      className="overflow-auto"
+      style={{ height, contain: 'strict' }}
+    >
+      {/* Inner div sized to the TOTAL list height so the scrollbar reflects it. */}
+      <div
+        style={{
+          height: virtualizer.getTotalSize(),
+          width: '100%',
+          position: 'relative',
+        }}
+      >
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const item = items[virtualRow.index]!;
+          return (
+            <div
+              key={virtualRow.key}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: virtualRow.size,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+            >
+              {renderItem(item, virtualRow.index)}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

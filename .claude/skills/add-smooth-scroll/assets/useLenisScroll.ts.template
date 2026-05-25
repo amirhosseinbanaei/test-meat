@@ -1,0 +1,50 @@
+'use client';
+
+import { useCallback } from 'react';
+
+/**
+ * Hook to call Lenis programmatically. Falls back gracefully to native
+ * `scrollIntoView` if Lenis isn't initialized (e.g. reduced motion).
+ *
+ *   const { scrollTo } = useLenisScroll();
+ *   scrollTo('#pricing', { duration: 1.2 });
+ *
+ * The Lenis instance is reached via the global Lenis attaches to window
+ * when initialized in SmoothScroll. We type that loosely for resilience.
+ */
+
+interface LenisLike {
+  scrollTo: (target: string | HTMLElement | number, options?: { duration?: number; offset?: number }) => void;
+}
+
+declare global {
+  interface Window {
+    __lenis?: LenisLike;
+  }
+}
+
+export function useLenisScroll(): {
+  scrollTo: (target: string | HTMLElement, options?: { duration?: number; offset?: number }) => void;
+} {
+  const scrollTo = useCallback(
+    (target: string | HTMLElement, options?: { duration?: number; offset?: number }) => {
+      if (typeof window === 'undefined') return;
+
+      const lenis = window.__lenis;
+      if (lenis) {
+        lenis.scrollTo(target, options);
+        return;
+      }
+
+      // Fallback: native scrollIntoView. Behavior 'auto' when reduced motion is on.
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const el = typeof target === 'string' ? document.querySelector(target) : target;
+      if (el instanceof HTMLElement) {
+        el.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+      }
+    },
+    [],
+  );
+
+  return { scrollTo };
+}

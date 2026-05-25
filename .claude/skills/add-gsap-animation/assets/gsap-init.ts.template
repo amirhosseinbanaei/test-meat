@@ -1,0 +1,26 @@
+/**
+ * GSAP initialization. Imports the registered plugins.
+ *
+ * Locked pattern: import this file lazily, NOT at module top-level of pages
+ * that don't need GSAP. Use dynamic import in a route component:
+ *
+ *   const { gsap, ScrollTrigger } = await import('@/common/lib/gsap-init');
+ *
+ * Or, in a component:
+ *
+ *   const animationModule = await import('@/modules/marketing/animations/hero');
+ *
+ * The hero module imports gsap-init internally and exposes its animations.
+ */
+
+import gsap from 'gsap';
+import ScrollTrigger from 'gsap/ScrollTrigger';
+
+// Register plugins once. Subsequent imports are no-ops.
+gsap.registerPlugin(ScrollTrigger);
+
+// Default ticker config — disable lag smoothing for synchronous scroll work.
+// Lenis integration overrides this; standalone GSAP uses the default.
+gsap.ticker.lagSmoothing(500, 33);
+
+export { gsap, ScrollTrigger };

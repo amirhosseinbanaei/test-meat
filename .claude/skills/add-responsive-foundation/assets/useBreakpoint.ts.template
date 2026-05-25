@@ -1,0 +1,88 @@
+'use client';
+
+import { useEffect, useState, useMemo } from 'react';
+
+/**
+ * The locked breakpoint hook. Returns the current viewport tier OR evaluates
+ * a comparison query.
+ *
+ *   const bp = useBreakpoint();               // 'base' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'
+ *   const isMobile = useBreakpoint('< md');   // true when viewport < 768px
+ *   const isDesktop = useBreakpoint('>= lg'); // true when viewport >= 1024px
+ *
+ * WARNING — prefer Tailwind classes for styling. This hook is for *behavior*
+ * that depends on viewport size — e.g. picking a desktop component vs. a mobile
+ * component to render, or choosing a popover vs. drawer for a menu. For styles,
+ * always use Tailwind's responsive prefixes — that way styles work without JS.
+ *
+ * SSR-safe: returns `base` on the server, then updates on the client after mount.
+ * This means a brief mismatch on first paint for non-base viewports — acceptable
+ * because Tailwind classes handle the visual layout regardless.
+ */
+
+export type Breakpoint = 'base' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+
+const breakpoints: Record<Exclude<Breakpoint, 'base'>, number> = {
+  sm: 640,
+  md: 768,
+  lg: 1024,
+  xl: 1280,
+  '2xl': 1536,
+};
+
+const order: Breakpoint[] = ['base', 'sm', 'md', 'lg', 'xl', '2xl'];
+
+function currentBreakpoint(width: number): Breakpoint {
+  if (width >= breakpoints['2xl']) return '2xl';
+  if (width >= breakpoints.xl) return 'xl';
+  if (width >= breakpoints.lg) return 'lg';
+  if (width >= breakpoints.md) return 'md';
+  if (width >= breakpoints.sm) return 'sm';
+  return 'base';
+}
+
+type Comparison = '<' | '<=' | '>=' | '>';
+type Query = `${Comparison} ${Breakpoint}`;
+
+function parseQuery(query: Query): { op: Comparison; bp: Breakpoint } {
+  const [op, bp] = query.split(' ') as [Comparison, Breakpoint];
+  return { op, bp };
+}
+
+function evaluate(current: Breakpoint, query: Query): boolean {
+  const { op, bp } = parseQuery(query);
+  const currentIdx = order.indexOf(current);
+  const targetIdx = order.indexOf(bp);
+  switch (op) {
+    case '<':  return currentIdx < targetIdx;
+    case '<=': return currentIdx <= targetIdx;
+    case '>=': return currentIdx >= targetIdx;
+    case '>':  return currentIdx > targetIdx;
+  }
+}
+
+export function useBreakpoint(): Breakpoint;
+export function useBreakpoint(query: Query): boolean;
+export function useBreakpoint(query?: Query): Breakpoint | boolean {
+  const [bp, setBp] = useState<Breakpoint>('base');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    function update() {
+      setBp(currentBreakpoint(window.innerWidth));
+    }
+
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+
+  // Stable reference for the query result
+  const result = useMemo(() => {
+    if (query) return evaluate(bp, query);
+    return bp;
+  }, [bp, query]);
+
+  return result;
+}

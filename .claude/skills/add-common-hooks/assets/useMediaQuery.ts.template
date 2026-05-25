@@ -1,0 +1,30 @@
+'use client';
+
+import { useSyncExternalStore } from 'react';
+
+/**
+ * `true` if the media query currently matches. Live-updates when the viewport
+ * changes (resize, orientation, devicePixelRatio).
+ *
+ *   const isDesktop = useMediaQuery('(min-width: 1024px)');
+ *   const prefersDark = useMediaQuery('(prefers-color-scheme: dark)');
+ *   const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+ *
+ * SSR: returns `false`. Use `useMounted()` if you need to avoid rendering the
+ * fallback value into the SSR'd HTML.
+ *
+ * Uses `useSyncExternalStore` so concurrent rendering sees the right value.
+ */
+export function useMediaQuery(query: string): boolean {
+  const subscribe = (onChange: () => void) => {
+    const mql = window.matchMedia(query);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  };
+
+  const getSnapshot = () => window.matchMedia(query).matches;
+
+  const getServerSnapshot = () => false;
+
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}

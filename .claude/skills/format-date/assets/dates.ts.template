@@ -1,0 +1,155 @@
+/**
+ * Central dates module.
+ *
+ * Every component imports from here — never from `date-fns` or `date-fns-jalali`
+ * directly. This keeps formatting consistent across the app and makes locale
+ * switching a one-file change.
+ *
+ * Internal storage rule: ALWAYS store and pass `Date` objects (or ISO strings)
+ * in Gregorian. Convert to Jalali / Hijri only at display time.
+ *
+ * Manipulation rule:
+ *   - Gregorian arithmetic → use the `*` (no suffix) helpers (re-export date-fns).
+ *   - Jalali arithmetic   → use the `*Jalali` helpers (re-export date-fns-jalali).
+ *   - Hijri arithmetic    → not supported. Convert via Intl for display only.
+ */
+
+import {
+  addDays as addDaysFns,
+  addMonths as addMonthsFns,
+  addYears as addYearsFns,
+  differenceInDays as diffDaysFns,
+  isAfter as isAfterFns,
+  isBefore as isBeforeFns,
+  parseISO,
+} from 'date-fns';
+
+import {
+  addDays as addDaysJalaliFns,
+  addMonths as addMonthsJalaliFns,
+  addYears as addYearsJalaliFns,
+  format as formatJalaliFns,
+  parse as parseJalaliFns,
+} from 'date-fns-jalali';
+
+// ---------------------------------------------------------------------------
+// Locale and calendar configuration
+// ---------------------------------------------------------------------------
+
+/**
+ * The locales / calendars the project supports. Add / remove entries here
+ * — every helper in this file branches on these.
+ *
+ * Locale strings follow BCP 47 with Unicode extensions:
+ *   - `en-US`               → English, Gregorian
+ *   - `fa-IR-u-ca-persian`  → Persian (Farsi), Jalali / Shamsi calendar
+ *   - `ar-SA-u-ca-islamic`  → Arabic, Hijri calendar
+ *   - `ar-EG`               → Arabic, Gregorian (Egypt-style numbering)
+ */
+export type Calendar = 'gregorian' | 'jalali' | 'hijri';
+
+const LOCALE_BY_CALENDAR: Record<Calendar, string> = {
+  gregorian: 'en-US',
+  jalali: 'fa-IR-u-ca-persian',
+  hijri: 'ar-SA-u-ca-islamic',
+};
+
+// ---------------------------------------------------------------------------
+// Formatting (display) — uses native Intl. No library needed.
+// ---------------------------------------------------------------------------
+
+/**
+ * Format a date for display.
+ *
+ * Examples:
+ *   formatDate(new Date(), { calendar: 'gregorian', dateStyle: 'medium' })
+ *     → "May 13, 2026"
+ *   formatDate(new Date(), { calendar: 'jalali', dateStyle: 'long' })
+ *     → "۲۳ اردیبهشت ۱۴۰۵"
+ *   formatDate(new Date(), { calendar: 'hijri', dateStyle: 'long' })
+ *     → "٢٧ شوال ١٤٤٧ هـ"
+ */
+export function formatDate(
+  date: Date,
+  options: {
+    calendar?: Calendar;
+    dateStyle?: 'full' | 'long' | 'medium' | 'short';
+    timeStyle?: 'full' | 'long' | 'medium' | 'short';
+    /** Override the locale entirely. If set, ignores `calendar`. */
+    locale?: string;
+  } = {},
+): string {
+  const { calendar = 'gregorian', dateStyle = 'medium', timeStyle, locale } = options;
+  const localeStr = locale ?? LOCALE_BY_CALENDAR[calendar];
+  return new Intl.DateTimeFormat(localeStr, {
+    dateStyle,
+    ...(timeStyle ? { timeStyle } : {}),
+  }).format(date);
+}
+
+/**
+ * Format a relative time ("2 hours ago", "in 3 days", "۲ ساعت پیش").
+ * Uses Intl.RelativeTimeFormat — native, no library.
+ */
+export function formatRelative(
+  date: Date,
+  options: { calendar?: Calendar; locale?: string; now?: Date } = {},
+): string {
+  const { calendar = 'gregorian', locale, now = new Date() } = options;
+  const localeStr = locale ?? LOCALE_BY_CALENDAR[calendar];
+  const rtf = new Intl.RelativeTimeFormat(localeStr, { numeric: 'auto' });
+
+  const diffSec = Math.round((date.getTime() - now.getTime()) / 1000);
+  const abs = Math.abs(diffSec);
+
+  if (abs < 60) return rtf.format(diffSec, 'second');
+  if (abs < 3600) return rtf.format(Math.round(diffSec / 60), 'minute');
+  if (abs < 86_400) return rtf.format(Math.round(diffSec / 3600), 'hour');
+  if (abs < 2_592_000) return rtf.format(Math.round(diffSec / 86_400), 'day');
+  if (abs < 31_536_000) return rtf.format(Math.round(diffSec / 2_592_000), 'month');
+  return rtf.format(Math.round(diffSec / 31_536_000), 'year');
+}
+
+// ---------------------------------------------------------------------------
+// Manipulation — Gregorian
+// ---------------------------------------------------------------------------
+
+export const addDays = addDaysFns;
+export const addMonths = addMonthsFns;
+export const addYears = addYearsFns;
+export const differenceInDays = diffDaysFns;
+export const isAfter = isAfterFns;
+export const isBefore = isBeforeFns;
+export const parseIsoDate = parseISO;
+
+// ---------------------------------------------------------------------------
+// Manipulation — Jalali (date-fns-jalali drop-in API)
+// ---------------------------------------------------------------------------
+
+export const addDaysJalali = addDaysJalaliFns;
+export const addMonthsJalali = addMonthsJalaliFns;
+export const addYearsJalali = addYearsJalaliFns;
+
+/**
+ * Parse a Jalali date string into a Gregorian `Date`.
+ *
+ * Example:
+ *   parseJalaliDate('1405/02/23', 'yyyy/MM/dd')
+ *     → Date(2026-05-13T00:00:00.000Z)  // stored as Gregorian Date object
+ */
+export function parseJalaliDate(value: string, format: string): Date {
+  return parseJalaliFns(value, format, new Date());
+}
+
+/**
+ * Format a Date in Jalali with a custom format string. Use this when you need
+ * machine-readable Jalali (e.g. for a form input or a URL). For display, prefer
+ * `formatDate(date, { calendar: 'jalali' })`.
+ *
+ * Example:
+ *   formatJalali(new Date(), 'yyyy/MM/dd')
+ *     → "1405/02/23"
+ */
+export function formatJalali(date: Date, format: string): string {
+  return formatJalaliFns(date, format);
+}

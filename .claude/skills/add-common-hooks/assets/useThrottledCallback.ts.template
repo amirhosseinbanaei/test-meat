@@ -1,0 +1,53 @@
+'use client';
+
+import { useEffect, useRef } from 'react';
+
+/**
+ * Returns a throttled callback that fires at most once per `delay` ms.
+ * Leading + trailing edge — invokes immediately on the first call, then again
+ * if more calls happen during the throttle window.
+ *
+ *   const onScroll = useThrottledCallback(() => recordPosition(), 100);
+ *   <div onScroll={onScroll} />
+ */
+export function useThrottledCallback<F extends (...args: never[]) => unknown>(
+  callback: F,
+  delay: number,
+): (...args: Parameters<F>) => void {
+  const callbackRef = useRef(callback);
+  const lastCallRef = useRef(0);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastArgsRef = useRef<Parameters<F> | null>(null);
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current !== null) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  return (...args: Parameters<F>) => {
+    const now = Date.now();
+    const elapsed = now - lastCallRef.current;
+    lastArgsRef.current = args;
+
+    if (elapsed >= delay) {
+      lastCallRef.current = now;
+      lastArgsRef.current = null;
+      callbackRef.current(...args);
+    } else if (timeoutRef.current === null) {
+      timeoutRef.current = setTimeout(() => {
+        lastCallRef.current = Date.now();
+        timeoutRef.current = null;
+        if (lastArgsRef.current !== null) {
+          const argsToUse = lastArgsRef.current;
+          lastArgsRef.current = null;
+          callbackRef.current(...argsToUse);
+        }
+      }, delay - elapsed);
+    }
+  };
+}

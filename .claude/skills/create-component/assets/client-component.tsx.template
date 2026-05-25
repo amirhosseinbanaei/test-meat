@@ -1,0 +1,35 @@
+'use client';
+
+/**
+ * Client Component — runs in the browser. Use ONLY when one of the Client triggers
+ * is genuinely required:
+ *   - state hooks (useState, useReducer)
+ *   - effect hooks (useEffect, useLayoutEffect)
+ *   - event handlers (onClick, onChange, etc.)
+ *   - browser APIs (window, document, localStorage, observers, …)
+ *   - a third-party library that requires the browser
+ *
+ * Replace placeholders:
+ *   {{COMPONENT_NAME}}   PascalCase, e.g. `ThemeToggle`.
+ *   {{PROPS_TYPE}}       Inline props type. For props-less: replace with `Record<string, never>`.
+ *
+ * Rules:
+ *   - `'use client'` must be the first line of the file.
+ *   - Cannot be `async`.
+ *   - `ref` is a regular prop in React 19 — accept it directly. Do NOT use `forwardRef`.
+ *   - The React Compiler memoises this component automatically. Do NOT add
+ *     `useMemo` / `useCallback` / `React.memo` as a performance habit.
+ *   - For non-reactive logic inside effects, use `useEffectEvent` from React 19.2
+ *     (see references/react-19-hooks.md).
+ */
+
+type Props = {{PROPS_TYPE}};
+
+export default function {{COMPONENT_NAME}}(props: Props) {
+  // Client-side state, effects, and handlers go here.
+  return (
+    <div>
+      {/* Component output */}
+    </div>
+  );
+}

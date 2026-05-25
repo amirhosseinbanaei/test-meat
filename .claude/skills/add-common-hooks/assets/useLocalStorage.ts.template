@@ -1,0 +1,92 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+
+/**
+ * Reactive localStorage. Returns [value, set, remove].
+ *
+ * SSR: returns `initialValue` on the server. After mount, reads from storage
+ * and syncs the state. Avoid rendering the returned value into HTML
+ * server-side — wrap with `useMounted()` if you must.
+ *
+ * Cross-tab: listens to the `storage` event so changes in another tab update
+ * this hook's value.
+ *
+ * Functional updater supported: `set((prev) => prev + 1)`.
+ */
+export function useLocalStorage<T>(
+  key: string,
+  initialValue: T,
+): [T, (next: T | ((prev: T) => T)) => void, () => void] {
+  const [value, setValue] = useState<T>(() => readFrom(key, initialValue));
+
+  // After mount, re-read in case the initial render used the SSR fallback.
+  useEffect(() => {
+    setValue(readFrom(key, initialValue));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  const set = useCallback(
+    (next: T | ((prev: T) => T)) => {
+      setValue((prev) => {
+        const resolved =
+          typeof next === 'function' ? (next as (p: T) => T)(prev) : next;
+        try {
+          window.localStorage.setItem(key, JSON.stringify(resolved));
+          // Dispatch synthetic event so listeners in the same tab also re-sync.
+          window.dispatchEvent(
+            new StorageEvent('storage', {
+              key,
+              newValue: JSON.stringify(resolved),
+            }),
+          );
+        } catch {
+          // Quota exceeded / private browsing.
+        }
+        return resolved;
+      });
+    },
+    [key],
+  );
+
+  const remove = useCallback(() => {
+    try {
+      window.localStorage.removeItem(key);
+      window.dispatchEvent(new StorageEvent('storage', { key, newValue: null }));
+    } catch {
+      // ignore
+    }
+    setValue(initialValue);
+  }, [key, initialValue]);
+
+  // Cross-tab sync.
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== key) return;
+      if (event.newValue === null) {
+        setValue(initialValue);
+        return;
+      }
+      try {
+        setValue(JSON.parse(event.newValue) as T);
+      } catch {
+        // Corrupt value — ignore.
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [key, initialValue]);
+
+  return [value, set, remove];
+}
+
+function readFrom<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (raw === null) return fallback;
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}

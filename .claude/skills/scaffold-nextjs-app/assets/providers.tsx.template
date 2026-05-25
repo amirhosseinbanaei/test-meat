@@ -1,0 +1,58 @@
+'use client';
+
+/**
+ * Root client providers.
+ *
+ * Wraps the app tree in TanStack Query's QueryClientProvider so any Client
+ * Component below can use `useQuery` / `useMutation` for client-reactive needs.
+ *
+ * Rules:
+ * - Make the QueryClient with a state initialiser, NOT a module-level constant.
+ *   Module-level state on the server is shared across requests — a memory leak
+ *   and a data-leak risk.
+ * - One QueryClient per browser tab. The state initialiser ensures this.
+ * - Devtools are shown only in development.
+ *
+ * Usage: wrap RootLayout's children with this.
+ *
+ *   // src/app/layout.tsx
+ *   import { Providers } from './providers';
+ *   export default function RootLayout({ children }: { children: React.ReactNode }) {
+ *     return (
+ *       <html lang="en">
+ *         <body><Providers>{children}</Providers></body>
+ *       </html>
+ *     );
+ *   }
+ */
+
+import { useState, type ReactNode } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+
+function makeQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        // Reasonable defaults for a Next.js app. Adjust per-query as needed.
+        staleTime: 60 * 1000, // 1 minute
+        refetchOnWindowFocus: false,
+        retry: 1,
+      },
+    },
+  });
+}
+
+export function Providers({ children }: { children: ReactNode }) {
+  // useState ensures one QueryClient per browser tab, never shared on the server.
+  const [queryClient] = useState(makeQueryClient);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+      {process.env.NODE_ENV === 'development' ? (
+        <ReactQueryDevtools initialIsOpen={false} />
+      ) : null}
+    </QueryClientProvider>
+  );
+}

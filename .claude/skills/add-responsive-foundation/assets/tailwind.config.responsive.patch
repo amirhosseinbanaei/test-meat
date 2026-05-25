@@ -1,0 +1,102 @@
+# Tailwind config — responsive additions
+
+Tailwind 4 reads most theme tokens from `globals.css` (the `@theme` block). A
+handful of things still belong in `tailwind.config.ts` — breakpoint names
+(if they need explicit aliases beyond Tailwind defaults), content paths, and
+plugin registration.
+
+The defaults Tailwind ships are kept. The locked contract aligns to them, so no
+breakpoint customization is needed in most projects.
+
+## Default breakpoints (locked contract — DO NOT change without escalation)
+
+| Name | Min-width | Pixel | Tier |
+|---|---|---|---|
+| `sm` | 40rem | 640px | Phone landscape, small tablet |
+| `md` | 48rem | 768px | Tablet portrait |
+| `lg` | 64rem | 1024px | Laptop, tablet landscape |
+| `xl` | 80rem | 1280px | Desktop |
+| `2xl` | 96rem | 1536px | Wide desktop |
+
+If your project genuinely needs different breakpoints (e.g. an internal admin
+that only targets 1280+, so `sm` becomes pointless), override in your CSS:
+
+```css
+@theme {
+  --breakpoint-sm: 768px;
+  --breakpoint-md: 1024px;
+  --breakpoint-lg: 1280px;
+  --breakpoint-xl: 1536px;
+  --breakpoint-2xl: 1920px;
+}
+```
+
+Don't introduce new breakpoint names. The five locked ones are what every
+component is written against.
+
+## Touch-target utilities
+
+Already exposed via `--size-touch` and `--size-touch-lg` in `globals.css`. Use:
+
+```html
+<button class="min-h-touch min-w-touch">...</button>     <!-- 44×44 minimum -->
+<button class="min-h-touch-lg min-w-touch-lg">...</button> <!-- 48×48 preferred -->
+<button class="size-touch">...</button>                    <!-- exact 44×44 -->
+```
+
+## Fluid type and spacing utilities
+
+Already exposed via `--text-fluid-*` and `--space-fluid-*` in `globals.css`.
+
+Tailwind 4 auto-generates utilities from theme tokens, so these "just work":
+
+- `text-fluid-base`, `text-fluid-lg`, `text-fluid-3xl`, etc.
+- `gap-fluid-md`, `py-fluid-lg`, `mt-fluid-sm`, etc.
+  (Tailwind reads `--space-fluid-*` as part of its spacing scale via the
+  `@theme` directive — see Tailwind 4 docs on theme variable namespaces.)
+
+If your Tailwind setup doesn't expand `--space-fluid-*` automatically into the
+spacing scale (some setups require namespace prefixes), use the CSS-variable
+form inline:
+
+```html
+<section class="py-[var(--space-fluid-lg)]">
+```
+
+## Container queries
+
+Native in Tailwind 4. Use as:
+
+```html
+<div class="@container">
+  <h2 class="text-fluid-xl @md:text-fluid-2xl">Adapts to parent</h2>
+</div>
+```
+
+The `@sm:`, `@md:`, `@lg:`, `@xl:`, `@2xl:` prefixes work inside any
+`@container` ancestor. Default container-query breakpoint values map to:
+
+| Name | Min container width |
+|---|---|
+| `@sm` | 24rem (384px) |
+| `@md` | 28rem (448px) |
+| `@lg` | 32rem (512px) |
+| `@xl` | 36rem (576px) |
+| `@2xl` | 42rem (672px) |
+
+NOTE: these are NOT the same as the viewport breakpoints — they're smaller,
+because containers are typically narrower than viewports. This is intentional:
+"`@md`" means "the container is at least 448px wide" — at that width a 2-column
+layout is reasonable.
+
+If you need to query at the viewport breakpoint values within a container, name
+them explicitly:
+
+```html
+<div class="@container/card">
+  <h2 class="@[768px]/card:text-fluid-2xl">...</h2>
+</div>
+```
+
+The `/name` syntax names the container so children can target it. Rare; use
+when component nesting requires disambiguation.

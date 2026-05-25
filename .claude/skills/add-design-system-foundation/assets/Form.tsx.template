@@ -1,0 +1,154 @@
+'use client';
+
+/**
+ * The RHF `Form` provider and helpers consumed by every Form* component in form/.
+ *
+ * Adapted from the shadcn/ui form pattern but vendored here so form/ doesn't reach
+ * into ui/ for the form internals (that would break the layer contract).
+ *
+ * Exports:
+ *   Form           — the FormProvider re-export
+ *   FormField      — wraps Controller, provides field context
+ *   FormItem       — wraps the labelled field (label + control + message + description)
+ *   FormLabel      — accessibility-wired label
+ *   FormControl    — the slot the input goes in; wires aria-describedby + aria-invalid
+ *   FormDescription — helper text below the input
+ *   FormMessage    — error message
+ *   useFormField   — internal: read the field id + state inside one of the above
+ */
+
+import React, { createContext, useContext, useId, type ComponentProps } from 'react';
+import {
+  Controller,
+  FormProvider,
+  useFormContext,
+  type ControllerProps,
+  type FieldPath,
+  type FieldValues,
+} from 'react-hook-form';
+import { cn } from '@/common/lib/utils';
+import { Label } from '@/common/components/ui/label';
+import { Slot } from 'radix-ui';
+
+const Form = FormProvider;
+
+interface FormFieldContextValue<
+  TFieldValues extends FieldValues = FieldValues,
+  TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
+> {
+  name: TName;
+}
+
+const FormFieldContext = createContext<FormFieldContextValue | null>(null);
+
+function FormField<
+  TFieldValues extends FieldValues = FieldValues,
+  TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
+>({ ...props }: ControllerProps<TFieldValues, TName>) {
+  return (
+    <FormFieldContext.Provider value={{ name: props.name }}>
+      <Controller {...props} />
+    </FormFieldContext.Provider>
+  );
+}
+
+interface FormItemContextValue {
+  id: string;
+}
+
+const FormItemContext = createContext<FormItemContextValue | null>(null);
+
+function useFormField() {
+  const fieldContext = useContext(FormFieldContext);
+  const itemContext = useContext(FormItemContext);
+  const { getFieldState, formState } = useFormContext();
+
+  if (!fieldContext) throw new Error('useFormField must be used inside <FormField>');
+  if (!itemContext) throw new Error('useFormField must be used inside <FormItem>');
+
+  const fieldState = getFieldState(fieldContext.name, formState);
+  const { id } = itemContext;
+
+  return {
+    id,
+    name: fieldContext.name,
+    formItemId: `${id}-form-item`,
+    formDescriptionId: `${id}-form-item-description`,
+    formMessageId: `${id}-form-item-message`,
+    ...fieldState,
+  };
+}
+
+function FormItem({ className, ...props }: ComponentProps<'div'>) {
+  const id = useId();
+  return (
+    <FormItemContext.Provider value={{ id }}>
+      <div className={cn('flex flex-col gap-1', className)} {...props} />
+    </FormItemContext.Provider>
+  );
+}
+
+function FormLabel({ className, ...props }: ComponentProps<typeof Label>) {
+  const { error, formItemId } = useFormField();
+  return (
+    <Label
+      htmlFor={formItemId}
+      className={cn(error && 'text-destructive', className)}
+      {...props}
+    />
+  );
+}
+
+function FormControl({ ...props }: ComponentProps<typeof Slot.Root>) {
+  const { error, formItemId, formDescriptionId, formMessageId } = useFormField();
+  return (
+    <Slot.Root
+      id={formItemId}
+      aria-describedby={
+        !error
+          ? formDescriptionId
+          : `${formDescriptionId} ${formMessageId}`
+      }
+      aria-invalid={!!error}
+      {...props}
+    />
+  );
+}
+
+function FormDescription({ className, ...props }: ComponentProps<'p'>) {
+  const { formDescriptionId } = useFormField();
+  return (
+    <p
+      id={formDescriptionId}
+      className={cn('text-xs text-muted-foreground', className)}
+      {...props}
+    />
+  );
+}
+
+function FormMessage({ className, children, ...props }: ComponentProps<'p'>) {
+  const { error, formMessageId } = useFormField();
+  const body = error ? String(error.message ?? '') : children;
+  if (!body) return null;
+
+  return (
+    <p
+      id={formMessageId}
+      className={cn('text-xs font-medium text-destructive', className)}
+      {...props}
+    >
+      {body}
+    </p>
+  );
+}
+
+export {
+  Form,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormControl,
+  FormDescription,
+  FormMessage,
+  useFormField,
+};

@@ -1,0 +1,84 @@
+/**
+ * Network connectivity utilities.
+ *
+ * For reactive online/offline detection in components, use `useOnline()` from
+ * `common/hooks/use-online`. The function here is a one-shot read.
+ *
+ * `navigator.onLine` is not 100% reliable — it reports network interface state,
+ * not actual internet reachability. A user with a local network connection but
+ * no internet will show as "online". For true reachability, ping a known
+ * endpoint (e.g. your own healthcheck) — but most apps don't need that.
+ */
+
+/** Quick one-shot check. `true` if we appear to have a network connection. */
+export function isOnline(): boolean {
+  if (typeof navigator === 'undefined') return true; // SSR — assume online.
+  return navigator.onLine;
+}
+
+// ---------------------------------------------------------------------------
+// Connection info (Chromium-only API; Safari/Firefox return `undefined`)
+// ---------------------------------------------------------------------------
+
+export type ConnectionType = 'bluetooth' | 'cellular' | 'ethernet' | 'none' | 'wifi' | 'wimax' | 'other' | 'unknown';
+export type EffectiveConnectionType = 'slow-2g' | '2g' | '3g' | '4g';
+
+interface NetworkInformation extends EventTarget {
+  readonly downlink?: number;
+  readonly effectiveType?: EffectiveConnectionType;
+  readonly rtt?: number;
+  readonly saveData?: boolean;
+  readonly type?: ConnectionType;
+}
+
+interface NavigatorWithConnection extends Navigator {
+  connection?: NetworkInformation;
+  mozConnection?: NetworkInformation;
+  webkitConnection?: NetworkInformation;
+}
+
+function getConnection(): NetworkInformation | undefined {
+  if (typeof navigator === 'undefined') return undefined;
+  const nav = navigator as NavigatorWithConnection;
+  return nav.connection ?? nav.mozConnection ?? nav.webkitConnection;
+}
+
+export interface ConnectionInfo {
+  /** Estimated downlink speed in Mbps. `undefined` if unknown. */
+  downlink: number | undefined;
+  /** Coarse classification: 'slow-2g' | '2g' | '3g' | '4g'. */
+  effectiveType: EffectiveConnectionType | undefined;
+  /** Estimated round-trip time in ms. */
+  rtt: number | undefined;
+  /** User has requested reduced data usage. */
+  saveData: boolean;
+  /** Network type, if exposed. */
+  type: ConnectionType;
+}
+
+/**
+ * Read the Network Information API. Returns sensible defaults on unsupported
+ * browsers (Safari, Firefox).
+ *
+ * Use this to:
+ *   - Defer loading high-bandwidth assets when `saveData` is true.
+ *   - Show "you're on a slow connection" hints when `effectiveType === '2g'`.
+ *   - Skip preloading on cellular.
+ */
+export function getConnectionInfo(): ConnectionInfo {
+  const conn = getConnection();
+  return {
+    downlink: conn?.downlink,
+    effectiveType: conn?.effectiveType,
+    rtt: conn?.rtt,
+    saveData: conn?.saveData ?? false,
+    type: conn?.type ?? 'unknown',
+  };
+}
+
+/** True if the user has data-saver enabled or the connection is slow. */
+export function isSlowConnection(): boolean {
+  const info = getConnectionInfo();
+  if (info.saveData) return true;
+  return info.effectiveType === 'slow-2g' || info.effectiveType === '2g';
+}

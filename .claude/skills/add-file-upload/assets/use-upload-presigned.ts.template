@@ -1,0 +1,86 @@
+'use client';
+
+/**
+ * Presigned-URL upload hook.
+ *
+ * Flow:
+ *   1. Client asks a Server Action for a presigned URL describing where to PUT
+ *      this file. The Server Action forwards to the backend, which returns a
+ *      URL valid for a short time.
+ *   2. Client PUTs the file bytes directly to the storage provider (S3 / R2 /
+ *      whatever the backend uses). Next.js doesn't touch the bytes.
+ *   3. Client tells the backend "upload complete" so it can finalise (move from
+ *      pending → published, kick off post-processing, etc.).
+ *
+ * Why this is preferred over Server Action multipart for anything big:
+ *   - Bytes don't transit Next.js — no worker tied up for the upload duration.
+ *   - Progress events work via XHR (fetch streams are clumsy for upload progress).
+ *
+ * Replace:
+ *   {{REQUEST_URL_ACTION}}   the Server Action that returns { uploadUrl, fileId }.
+ *   {{NOTIFY_COMPLETE_ACTION}}  the Server Action called after successful upload.
+ */
+
+import { useCallback, useState } from 'react';
+// import { {{REQUEST_URL_ACTION}}, {{NOTIFY_COMPLETE_ACTION}} } from '@/actions/uploads';
+
+export type UploadState =
+  | { status: 'idle' }
+  | { status: 'requesting' }
+  | { status: 'uploading'; progress: number }
+  | { status: 'finalising' }
+  | { status: 'done'; fileId: string; url: string }
+  | { status: 'error'; error: string };
+
+export function useUploadPresigned() {
+  const [state, setState] = useState<UploadState>({ status: 'idle' });
+
+  const upload = useCallback(async (file: File) => {
+    try {
+      setState({ status: 'requesting' });
+
+      // 1) Get a presigned URL from the backend (via Server Action).
+      // const { uploadUrl, fileId, publicUrl } = await {{REQUEST_URL_ACTION}}({
+      //   contentType: file.type,
+      //   size: file.size,
+      //   filename: file.name,
+      // });
+      const uploadUrl = '';   // ← replace
+      const fileId = '';      // ← replace
+      const publicUrl = '';   // ← replace
+
+      // 2) Upload directly with XHR (for progress events).
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', uploadUrl);
+        xhr.setRequestHeader('Content-Type', file.type);
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            setState({ status: 'uploading', progress: e.loaded / e.total });
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error(`Upload failed: ${xhr.status}`));
+        };
+        xhr.onerror = () => reject(new Error('Network error during upload.'));
+        xhr.send(file);
+      });
+
+      // 3) Tell the backend it's done.
+      setState({ status: 'finalising' });
+      // await {{NOTIFY_COMPLETE_ACTION}}({ fileId });
+
+      setState({ status: 'done', fileId, url: publicUrl });
+      return { fileId, url: publicUrl };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Upload failed.';
+      setState({ status: 'error', error: message });
+      throw err;
+    }
+  }, []);
+
+  const reset = useCallback(() => setState({ status: 'idle' }), []);
+
+  return { state, upload, reset };
+}

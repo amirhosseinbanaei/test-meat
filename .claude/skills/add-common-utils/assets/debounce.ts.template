@@ -1,0 +1,132 @@
+/**
+ * Standalone debounce and throttle.
+ *
+ * For **React components**, prefer the hooks (`useDebouncedCallback`,
+ * `useThrottledCallback`) — they cancel on unmount automatically. These
+ * standalone versions are for plain modules: event listeners, classes,
+ * non-React contexts.
+ */
+
+// ---------------------------------------------------------------------------
+// Debounce — fires after `delay` ms of inactivity.
+// ---------------------------------------------------------------------------
+
+export interface DebouncedFunction<F extends (...args: never[]) => unknown> {
+  (...args: Parameters<F>): void;
+  /** Cancel any pending invocation. */
+  cancel(): void;
+  /** Invoke immediately with the latest pending args (if any). */
+  flush(): void;
+  /** True if an invocation is currently scheduled. */
+  pending(): boolean;
+}
+
+/**
+ * Trailing-edge debounce. The function fires once after `delay` ms have passed
+ * since the most recent call.
+ *
+ *   const onResize = debounce(() => recalcLayout(), 200);
+ *   window.addEventListener('resize', onResize);
+ *
+ * `cancel()` clears the pending invocation (call this in cleanup).
+ * `flush()` invokes immediately with the most recent args.
+ */
+export function debounce<F extends (...args: never[]) => unknown>(
+  fn: F,
+  delay: number,
+): DebouncedFunction<F> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let pendingArgs: Parameters<F> | null = null;
+
+  const debounced = ((...args: Parameters<F>) => {
+    pendingArgs = args;
+    if (timeoutId !== null) clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
+      timeoutId = null;
+      if (pendingArgs !== null) {
+        const argsToUse = pendingArgs;
+        pendingArgs = null;
+        fn(...argsToUse);
+      }
+    }, delay);
+  }) as DebouncedFunction<F>;
+
+  debounced.cancel = () => {
+    if (timeoutId !== null) clearTimeout(timeoutId);
+    timeoutId = null;
+    pendingArgs = null;
+  };
+
+  debounced.flush = () => {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+    if (pendingArgs !== null) {
+      const argsToUse = pendingArgs;
+      pendingArgs = null;
+      fn(...argsToUse);
+    }
+  };
+
+  debounced.pending = () => timeoutId !== null;
+
+  return debounced;
+}
+
+// ---------------------------------------------------------------------------
+// Throttle — fires at most once per `delay` ms.
+// ---------------------------------------------------------------------------
+
+export interface ThrottledFunction<F extends (...args: never[]) => unknown> {
+  (...args: Parameters<F>): void;
+  cancel(): void;
+}
+
+/**
+ * Leading + trailing throttle: fires immediately on the first call, then at
+ * most once per `delay` ms, plus one trailing call if there were more args
+ * during the throttle window.
+ *
+ *   const onScroll = throttle(() => updatePosition(), 100);
+ *   window.addEventListener('scroll', onScroll);
+ */
+export function throttle<F extends (...args: never[]) => unknown>(
+  fn: F,
+  delay: number,
+): ThrottledFunction<F> {
+  let lastCall = 0;
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let lastArgs: Parameters<F> | null = null;
+
+  const throttled = ((...args: Parameters<F>) => {
+    const now = Date.now();
+    const elapsed = now - lastCall;
+    lastArgs = args;
+
+    if (elapsed >= delay) {
+      lastCall = now;
+      lastArgs = null;
+      fn(...args);
+    } else if (timeoutId === null) {
+      timeoutId = setTimeout(() => {
+        lastCall = Date.now();
+        timeoutId = null;
+        if (lastArgs !== null) {
+          const argsToUse = lastArgs;
+          lastArgs = null;
+          fn(...argsToUse);
+        }
+      }, delay - elapsed);
+    }
+  }) as ThrottledFunction<F>;
+
+  throttled.cancel = () => {
+    if (timeoutId !== null) clearTimeout(timeoutId);
+    timeoutId = null;
+    lastArgs = null;
+    lastCall = 0;
+  };
+
+  return throttled;
+}

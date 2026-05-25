@@ -1,0 +1,71 @@
+'use client';
+
+import { Suspense, useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
+import { SceneFallback } from './SceneFallback';
+
+/**
+ * Lazy wrapper around the 3D scene.
+ *
+ *   - Dynamic import keeps three.js / drei / Scene out of every other route.
+ *   - <Canvas> ships only when the scene is mounted.
+ *   - Suspense fallback covers model loading.
+ *   - Reduced-motion detection passed into Scene.
+ *   - Container has explicit dimensions to prevent layout shift.
+ */
+
+const Canvas = dynamic(
+  () => import('@react-three/fiber').then((m) => m.Canvas),
+  { ssr: false, loading: () => <SceneFallback /> },
+);
+
+const Scene = dynamic(
+  () => import('./Scene').then((m) => ({ default: m.Scene })),
+  { ssr: false },
+);
+
+interface SceneContainerProps {
+  modelUrl: string;
+  /** Container height. Width fills container. Provides explicit sizing to avoid CLS. */
+  height?: string;
+  /** Camera position [x, y, z]. */
+  cameraPosition?: [number, number, number];
+}
+
+export function SceneContainer({
+  modelUrl,
+  height = '500px',
+  cameraPosition = [3, 2, 5],
+}: SceneContainerProps) {
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReduceMotion(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setReduceMotion(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  return (
+    <div
+      style={{ height }}
+      className="w-full overflow-hidden rounded-lg bg-muted/30"
+      role="img"
+      aria-label="3D model viewer"
+    >
+      <Canvas
+        camera={{ position: cameraPosition, fov: 45 }}
+        dpr={[1, 2]}                         // Cap DPR to prevent burning GPU on 4K screens.
+        frameloop={reduceMotion ? 'demand' : 'always'}
+        shadows
+        gl={{ antialias: true, alpha: true }}
+      >
+        <Suspense fallback={null}>
+          <Scene modelUrl={modelUrl} reduceMotion={reduceMotion} />
+        </Suspense>
+      </Canvas>
+    </div>
+  );
+}

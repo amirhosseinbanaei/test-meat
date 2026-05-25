@@ -1,0 +1,50 @@
+/**
+ * useQuery hook: {{QUERY_NAME}}
+ *
+ * Replace:
+ *   {{QUERY_NAME}}       camelCase, e.g. `userPosts`, `commentList`.
+ *   {{QUERY_HOOK}}       PascalCase, e.g. `useUserPosts`.
+ *   {{KEY_BASE}}         The first element of the query key (a stable string).
+ *   {{RESULT_TYPE}}      The shape of one item the query returns.
+ *
+ * Rules:
+ *   - Keys must be stable and deterministic. Same inputs ⇒ same key.
+ *   - The fetcher returns the parsed shape — validate with Zod when crossing
+ *     the network boundary.
+ *   - This file lives in src/queries/. Components import the HOOK only; the
+ *     internals stay encapsulated.
+ *
+ * Call from a Client Component:
+ *   const { data, isPending, error } = use{{QUERY_HOOK}}(userId);
+ */
+
+import { useQuery } from '@tanstack/react-query';
+import { z } from 'zod';
+
+const resultSchema = z.object({
+  // describe the shape:
+  // id: z.string(),
+  // title: z.string(),
+});
+
+export type {{RESULT_TYPE}} = z.infer<typeof resultSchema>;
+
+async function fetch{{QUERY_HOOK}}(/* args: */): Promise<{{RESULT_TYPE}}[]> {
+  // Client-side: call a Route Handler or a Server Action that wraps the
+  // backend call. Never call the backend directly from a Client Component —
+  // the access token is HttpOnly.
+  const res = await fetch(`/api/{{KEY_BASE}}`);
+  if (!res.ok) throw new Error(`Failed to load {{KEY_BASE}}: ${res.status}`);
+  const raw: unknown = await res.json();
+  return z.array(resultSchema).parse(raw);
+}
+
+export function use{{QUERY_HOOK}}(/* args: */) {
+  return useQuery({
+    queryKey: ['{{KEY_BASE}}' /* , ...key parts */],
+    queryFn: () => fetch{{QUERY_HOOK}}(/* args */),
+    // Override defaults as needed:
+    // staleTime: 30_000,
+    // refetchInterval: 5_000,
+  });
+}

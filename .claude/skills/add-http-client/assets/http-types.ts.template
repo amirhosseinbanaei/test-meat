@@ -1,0 +1,181 @@
+/**
+ * HTTP types and the HttpError class — the team's standard error shape.
+ *
+ * Every failed HTTP request in the project throws an `HttpError`. The shape is
+ * static and identical across every endpoint, every retry, every helper. The
+ * UI layer can pattern-match on `error.status` or use `handleApiError()` to
+ * get a normalized object suitable for display.
+ *
+ * Shape on a thrown HttpError:
+ *   {
+ *     message: string;        // user-facing, ready to display
+ *     details: T;             // structured body the server returned (parsed JSON or text)
+ *     data?: K;               // partial data the server returned alongside the error (rare)
+ *     status: number;         // HTTP status (0 for network/timeout failures)
+ *     isOk: false;            // always false on errors; included for shape uniformity
+ *   }
+ */
+
+// ---------------------------------------------------------------------------
+// The thrown shape
+// ---------------------------------------------------------------------------
+
+export interface HttpErrorShape<TDetails = unknown, TData = unknown> {
+  message: string;
+  details: TDetails;
+  data?: TData;
+  status: number;
+  isOk: false;
+}
+
+export class HttpError<TDetails = unknown, TData = unknown>
+  extends Error
+  implements HttpErrorShape<TDetails, TData>
+{
+  readonly status: number;
+  readonly details: TDetails;
+  readonly data: TData | undefined;
+  readonly isOk = false as const;
+
+  constructor(params: {
+    message: string;
+    status: number;
+    details: TDetails;
+    data?: TData;
+  }) {
+    super(params.message);
+    this.name = 'HttpError';
+    this.status = params.status;
+    this.details = params.details;
+    this.data = params.data;
+    // Restore prototype chain for `instanceof` checks (needed when targeting ES5).
+    Object.setPrototypeOf(this, HttpError.prototype);
+  }
+
+  /**
+   * Build an HttpError from a non-OK Response.
+   * Parses the response body (JSON preferred, falls back to text).
+   * Picks the message in priority order:
+   *   1. customMessages[status]
+   *   2. body.message (if the server returned one)
+   *   3. customMessages.default
+   *   4. A status-appropriate default
+   */
+  static async fromResponse(
+    response: Response,
+    customMessages: ErrorMessageMap = {},
+  ): Promise<HttpError> {
+    let details: unknown = null;
+    let data: unknown = undefined;
+
+    try {
+      const raw = await response.text();
+      if (raw) {
+        try {
+          const parsed: unknown = JSON.parse(raw);
+          details = parsed;
+          if (parsed && typeof parsed === 'object' && 'data' in parsed) {
+            data = (parsed as { data: unknown }).data;
+          }
+        } catch {
+          details = raw; // Non-JSON body — keep as string.
+        }
+      }
+    } catch {
+      // Reading the body failed entirely (e.g. already consumed). Ignore.
+    }
+
+    const bodyMessage =
+      details && typeof details === 'object' && 'message' in details
+        ? String((details as { message: unknown }).message)
+        : null;
+
+    const message =
+      customMessages[response.status] ??
+      bodyMessage ??
+      customMessages.default ??
+      defaultMessageForStatus(response.status);
+
+    return new HttpError({
+      message,
+      status: response.status,
+      details,
+      data,
+    });
+  }
+
+  /**
+   * Build an HttpError for failures that didn't make it to a Response —
+   * network errors, timeouts, aborts.
+   */
+  static fromCause(
+    cause: 'timeout' | 'network' | 'aborted',
+    customMessages: ErrorMessageMap = {},
+    underlying?: unknown,
+  ): HttpError {
+    const fallback =
+      cause === 'timeout' ? 'Request timed out.'
+      : cause === 'aborted' ? 'Request was cancelled.'
+      : 'Network request failed. Check your connection.';
+
+    const message =
+      customMessages[cause] ?? customMessages.default ?? fallback;
+
+    return new HttpError({
+      message,
+      status: 0,
+      details: { cause, underlying: underlying instanceof Error ? underlying.message : underlying },
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Default messages per HTTP status
+// ---------------------------------------------------------------------------
+
+function defaultMessageForStatus(status: number): string {
+  if (status === 400) return 'The request was invalid.';
+  if (status === 401) return 'You need to sign in to continue.';
+  if (status === 403) return "You don't have permission to do that.";
+  if (status === 404) return "We couldn't find what you were looking for.";
+  if (status === 409) return 'This conflicts with another change. Please refresh and try again.';
+  if (status === 422) return 'The submission has validation errors.';
+  if (status === 429) return "You're going a bit fast. Please wait a moment.";
+  if (status >= 500 && status < 600) return 'The server is having trouble right now. Please try again.';
+  return `Request failed with status ${status}.`;
+}
+
+// ---------------------------------------------------------------------------
+// Request options
+// ---------------------------------------------------------------------------
+
+/**
+ * Map of error messages. Keys can be:
+ *   - An HTTP status code (number)
+ *   - 'timeout' | 'network' | 'aborted' — for non-Response failures
+ *   - 'default' — catch-all
+ */
+export type ErrorMessageMap = {
+  [status: number]: string;
+  timeout?: string;
+  network?: string;
+  aborted?: string;
+  default?: string;
+};
+
+export type RequestOptions = Omit<RequestInit, 'body'> & {
+  /** Request body. If passed as `json`, it's stringified and Content-Type is set. */
+  body?: BodyInit;
+  /** Convenience: pass an object to JSON-encode automatically. Overrides `body`. */
+  json?: unknown;
+  /** Abort the request after this many ms. Default: 30_000. */
+  timeout?: number;
+  /** Retry on failure this many times. Default: 0. */
+  retries?: number;
+  /** Base delay between retries (ms). Doubled on each attempt (exponential backoff). Default: 1000. */
+  retryDelay?: number;
+  /** Statuses that trigger a retry (network errors always retry up to `retries`). Default: [408, 429, 502, 503, 504]. */
+  retryOnStatuses?: number[];
+  /** Override the messages thrown for specific failures. */
+  errorMessages?: ErrorMessageMap;
+};

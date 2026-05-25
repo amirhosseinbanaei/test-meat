@@ -1,0 +1,140 @@
+/**
+ * Object utilities. Typed, immutable, with strict-mode-friendly signatures.
+ */
+
+/**
+ * Return a new object with only the specified keys.
+ *
+ *   pick({ a: 1, b: 2, c: 3 }, ['a', 'c'])   // { a: 1, c: 3 }
+ */
+export function pick<T extends object, K extends keyof T>(
+  obj: T,
+  keys: readonly K[],
+): Pick<T, K> {
+  const out = {} as Pick<T, K>;
+  for (const key of keys) {
+    if (key in obj) out[key] = obj[key];
+  }
+  return out;
+}
+
+/**
+ * Return a new object without the specified keys.
+ *
+ *   omit({ a: 1, b: 2, c: 3 }, ['b'])   // { a: 1, c: 3 }
+ */
+export function omit<T extends object, K extends keyof T>(
+  obj: T,
+  keys: readonly K[],
+): Omit<T, K> {
+  const set = new Set<keyof T>(keys);
+  const out = {} as Omit<T, K>;
+  for (const k in obj) {
+    if (!set.has(k as keyof T)) {
+      (out as Record<string, unknown>)[k] = obj[k];
+    }
+  }
+  return out;
+}
+
+/**
+ * Deep clone. Uses `structuredClone` (universally available in modern runtimes).
+ *
+ *   const next = deepClone(state);
+ *   next.user.name = 'changed';   // original untouched
+ *
+ * `structuredClone` doesn't handle functions, DOM nodes, or class instances
+ * (other than a fixed set). For those, write a custom cloner.
+ */
+export function deepClone<T>(value: T): T {
+  return structuredClone(value);
+}
+
+/**
+ * True if the object has no own enumerable keys.
+ *
+ *   isEmptyObject({})           // true
+ *   isEmptyObject({ a: 1 })     // false
+ */
+export function isEmptyObject(obj: object): boolean {
+  for (const _ in obj) return false;
+  return true;
+}
+
+/**
+ * Safe nested access via a dotted path.
+ *
+ *   getNested(user, 'address.city')     // string | undefined
+ *   getNested(data, 'items.0.name')     // arrays use numeric segments
+ *
+ * Returns `undefined` if any segment is missing. Important with
+ * `noUncheckedIndexedAccess`.
+ */
+export function getNested<T = unknown>(obj: unknown, path: string): T | undefined {
+  if (obj === null || obj === undefined) return undefined;
+  const segments = path.split('.');
+  let current: unknown = obj;
+  for (const seg of segments) {
+    if (current === null || current === undefined) return undefined;
+    if (typeof current !== 'object') return undefined;
+    current = (current as Record<string, unknown>)[seg];
+  }
+  return current as T | undefined;
+}
+
+/**
+ * Transform every value of an object. Keys preserved.
+ *
+ *   mapValues({ a: 1, b: 2 }, (v) => v * 10)   // { a: 10, b: 20 }
+ */
+export function mapValues<T extends object, U>(
+  obj: T,
+  fn: (value: T[keyof T], key: keyof T) => U,
+): { [K in keyof T]: U } {
+  const out = {} as { [K in keyof T]: U };
+  for (const key in obj) {
+    out[key] = fn(obj[key], key);
+  }
+  return out;
+}
+
+/**
+ * Build a record from an array, keyed by a property or computed key.
+ *
+ *   keyBy([{ id: 'a' }, { id: 'b' }], 'id')
+ *     // { a: { id: 'a' }, b: { id: 'b' } }
+ */
+export function keyBy<T, K extends keyof T>(
+  arr: readonly T[],
+  key: K | ((item: T) => string),
+): Record<string, T> {
+  const fn = typeof key === 'function' ? key : (item: T) => String(item[key]);
+  const out: Record<string, T> = {};
+  for (const item of arr) out[fn(item)] = item;
+  return out;
+}
+
+/**
+ * Deep-equality check. Suitable for plain data (JSON-serialisable).
+ * Doesn't handle Map / Set / Date specially — use a library if you need that.
+ */
+export function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null) return a === b;
+  if (typeof a !== typeof b) return false;
+  if (typeof a !== 'object') return false;
+
+  if (Array.isArray(a)) {
+    if (!Array.isArray(b)) return false;
+    if (a.length !== b.length) return false;
+    return a.every((v, i) => deepEqual(v, b[i]));
+  }
+  if (Array.isArray(b)) return false;
+
+  const aObj = a as Record<string, unknown>;
+  const bObj = b as Record<string, unknown>;
+  const aKeys = Object.keys(aObj);
+  const bKeys = Object.keys(bObj);
+  if (aKeys.length !== bKeys.length) return false;
+  return aKeys.every((k) => deepEqual(aObj[k], bObj[k]));
+}

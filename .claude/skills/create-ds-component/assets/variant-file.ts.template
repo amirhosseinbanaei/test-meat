@@ -1,0 +1,42 @@
+import { cva } from 'class-variance-authority';
+import {
+  base,
+  disabled,
+  aria,
+  focusVisible,
+  placeholder,
+} from './_shared';
+
+/**
+ * CVA variants for {{ComponentName}}.
+ *
+ * Compose tokens from _shared.ts as the first array element. Per-variant
+ * overrides go in the variants block. Defaults declared explicitly.
+ *
+ * Do NOT inline the shared tokens. Always import from _shared.
+ */
+export const {{componentName}}Variants = cva(
+  [
+    base,
+    disabled,
+    aria,
+    focusVisible,
+    placeholder,
+    'w-full',
+  ],
+  {
+    variants: {
+      variant: {
+        outline: 'bg-white/60',
+        fill: 'bg-ds-gray-200/40 border-0',
+        ghost: 'bg-transparent border-0',
+      },
+      // Add other variant axes (size, intent, etc.) here as needed.
+      // Each axis should be small (3–5 options); large axes are a signal
+      // the component is doing too much.
+    },
+    defaultVariants: {
+      variant: 'outline',
+    },
+  },
+);

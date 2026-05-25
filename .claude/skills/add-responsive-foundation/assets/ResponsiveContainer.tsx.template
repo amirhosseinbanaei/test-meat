@@ -1,0 +1,61 @@
+import React from 'react';
+import { cn } from '@/common/lib/utils';
+
+/**
+ * The locked page-level container. Every page wraps its content in this.
+ *
+ * - Max-width: 1280px by default (the locked `--container-default`).
+ *   Use `width="narrow"` (720px, article reading width) for blog posts / docs.
+ *   Use `width="wide"` (1536px) for dashboards / data-heavy pages.
+ * - Horizontal padding scales fluidly: 16px on mobile → 32px on desktop.
+ * - Centered by default.
+ *
+ *   <ResponsiveContainer>{children}</ResponsiveContainer>
+ *   <ResponsiveContainer width="narrow">{children}</ResponsiveContainer>
+ *
+ * For a full-bleed section (e.g. a hero with edge-to-edge image) wrap *that*
+ * section without the container, and use the container only for the centered
+ * content inside it:
+ *
+ *   <section className="bg-primary">  // full-bleed background
+ *     <ResponsiveContainer>           // centered content within
+ *       <HeroContent />
+ *     </ResponsiveContainer>
+ *   </section>
+ */
+
+interface ResponsiveContainerProps extends React.ComponentProps<'div'> {
+  /** Max-width tier. Defaults to 'default'. */
+  width?: 'narrow' | 'default' | 'wide';
+  /** Render as a different element. Defaults to `div`. Use `main`, `section`, `article` as appropriate. */
+  as?: 'div' | 'main' | 'section' | 'article';
+}
+
+const widthClasses: Record<NonNullable<ResponsiveContainerProps['width']>, string> = {
+  narrow: 'max-w-[var(--container-narrow)]',
+  default: 'max-w-[var(--container-default)]',
+  wide: 'max-w-[var(--container-wide)]',
+};
+
+export function ResponsiveContainer({
+  width = 'default',
+  as: Tag = 'div',
+  className,
+  children,
+  ...props
+}: ResponsiveContainerProps) {
+  return (
+    <Tag
+      className={cn(
+        'mx-auto w-full',
+        widthClasses[width],
+        // Fluid horizontal padding — 16px → 32px across viewports
+        'px-4 sm:px-6 lg:px-8',
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </Tag>
+  );
+}

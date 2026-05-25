@@ -1,0 +1,33 @@
+/**
+ * Serwist configuration. Builds the Service Worker at `src/app/sw.ts`
+ * during `next build` and serves it from `/sw.js`.
+ *
+ * Wraps the Next.js config in `next.config.ts`:
+ *
+ *   import withSerwistInit from '@serwist/next';
+ *   import serwistConfig from './serwist.config';
+ *   const withSerwist = withSerwistInit(serwistConfig);
+ *   export default withSerwist(nextConfig);
+ */
+
+import type { PluginOptions } from '@serwist/next';
+
+const config: PluginOptions = {
+  // Source of the SW — the file at this path is bundled and emitted as /sw.js.
+  swSrc: 'src/app/sw.ts',
+  swDest: 'public/sw.js',
+
+  // Disable in development by default. SW caching makes hot-reload confusing.
+  // Set NEXT_PUBLIC_PWA_DEV=1 to opt in for testing.
+  disable: process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_PWA_DEV !== '1',
+
+  // Precaching: built-in Serwist behavior — every immutable build artifact (hashed JS/CSS)
+  // gets precached. Manifest is computed at build time.
+  // Override the include/exclude in sw.ts if specific bundles should be skipped.
+
+  // Reload the page when a new SW takes control (vs. waiting for the next nav).
+  // We do this via PwaUpdater UI instead — set to false here.
+  reloadOnOnline: false,
+};
+
+export default config;

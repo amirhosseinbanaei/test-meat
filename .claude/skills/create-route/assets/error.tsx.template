@@ -1,0 +1,42 @@
+'use client';
+
+/**
+ * Error boundary for the segment. MUST be a Client Component (the 'use client'
+ * directive at the top of the file is required) because it uses an error
+ * recovery handler.
+ *
+ * Replace placeholders:
+ *   {{COMPONENT_NAME}}   PascalCase name, e.g. `BlogError`.
+ *
+ * Rules:
+ *   - Catches errors from this segment and its children, but NOT from the
+ *     segment's own layout. To catch layout errors, place an error.tsx at the
+ *     parent segment.
+ *   - `reset()` re-renders the segment from scratch. Call it from a retry button.
+ *   - Do not log the raw `error` object to the user — show a friendly message.
+ *     Log details to your error reporting service via `analytics-lead`'s tracking spec.
+ */
+
+import { useEffect } from 'react';
+
+type ErrorProps = {
+  error: Error & { digest?: string };
+  reset: () => void;
+};
+
+export default function {{COMPONENT_NAME}}({ error, reset }: ErrorProps) {
+  useEffect(() => {
+    // Hand off to the error reporting pipeline. Replace with the real call.
+    // reportError(error);
+    console.error(error);
+  }, [error]);
+
+  return (
+    <div role="alert">
+      <h2>Something went wrong.</h2>
+      <button type="button" onClick={reset}>
+        Try again
+      </button>
+    </div>
+  );
+}

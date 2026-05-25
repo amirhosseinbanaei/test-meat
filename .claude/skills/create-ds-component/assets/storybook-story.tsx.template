@@ -1,0 +1,83 @@
+import type { Meta, StoryObj } from '@storybook/react';
+import { Search } from 'lucide-react';
+import { {{ComponentName}} } from '@/common/components/ds/{{ComponentName}}';
+
+/**
+ * Storybook stories for {{ComponentName}}.
+ *
+ * Minimum coverage:
+ *   - Default
+ *   - One story per variant (or AllVariants showing them side-by-side)
+ *   - WithSlots (if the component supports slots)
+ *   - WithError (if the component is input-like)
+ *   - Disabled
+ */
+
+const meta: Meta<typeof {{ComponentName}}> = {
+  title: 'Design System/{{ComponentName}}',
+  component: {{ComponentName}},
+  tags: ['autodocs'],
+  argTypes: {
+    variant: {
+      control: 'select',
+      options: ['outline', 'fill', 'ghost'],
+    },
+    disabled: { control: 'boolean' },
+  },
+};
+
+export default meta;
+
+type Story = StoryObj<typeof {{ComponentName}}>;
+
+export const Default: Story = {
+  args: {
+    label: 'برچسب',
+    placeholder: 'متن پیش‌فرض...',
+    variant: 'outline',
+  },
+};
+
+export const WithSlots: Story = {
+  args: {
+    placeholder: 'جستجو...',
+    slots: {
+      leftIcon: <Search className="size-4" />,
+      tooltip: { content: 'جستجو در نتایج', side: 'top' },
+    },
+  },
+};
+
+export const WithError: Story = {
+  args: {
+    label: 'ایمیل',
+    error: 'فرمت ایمیل صحیح نیست',
+    value: 'not-an-email',
+  },
+};
+
+export const WithDescription: Story = {
+  args: {
+    label: 'نام کاربری',
+    description: 'حداقل ۳ کاراکتر، فقط حروف لاتین و اعداد.',
+    placeholder: 'نام کاربری شما',
+  },
+};
+
+export const Disabled: Story = {
+  args: {
+    label: 'غیرفعال',
+    value: 'مقدار غیرفعال',
+    disabled: true,
+  },
+};
+
+export const AllVariants: Story = {
+  render: () => (
+    <div className="flex flex-col gap-4">
+      <{{ComponentName}} variant="outline" placeholder="outline" />
+      <{{ComponentName}} variant="fill" placeholder="fill" />
+      <{{ComponentName}} variant="ghost" placeholder="ghost" />
+    </div>
+  ),
+};

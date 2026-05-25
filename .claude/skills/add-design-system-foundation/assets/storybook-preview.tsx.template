@@ -1,0 +1,65 @@
+import type { Preview } from '@storybook/react';
+import React from 'react';
+import '../src/app/globals.css';
+
+/**
+ * Storybook preview config — wires Tailwind, the project's default direction
+ * (RTL for the FE team's Persian-first products), and a global decorator that
+ * mounts stories inside a sensible container.
+ *
+ * Per-project: flip `defaultDir` to 'ltr' if your product is left-to-right.
+ */
+
+const defaultDir: 'rtl' | 'ltr' = 'rtl';
+
+const preview: Preview = {
+  parameters: {
+    layout: 'padded',
+    backgrounds: {
+      default: 'light',
+      values: [
+        { name: 'light', value: '#ffffff' },
+        { name: 'muted', value: '#f7f7f9' },
+        { name: 'dark', value: '#0a0a0a' },
+      ],
+    },
+    controls: {
+      matchers: {
+        color: /(background|color)$/i,
+        date: /Date$/i,
+      },
+    },
+    docs: {
+      toc: true,
+    },
+  },
+
+  globalTypes: {
+    direction: {
+      name: 'Direction',
+      description: 'Document direction',
+      defaultValue: defaultDir,
+      toolbar: {
+        icon: 'transfer',
+        items: [
+          { value: 'ltr', title: 'LTR' },
+          { value: 'rtl', title: 'RTL' },
+        ],
+        dynamicTitle: true,
+      },
+    },
+  },
+
+  decorators: [
+    (Story, context) => {
+      const dir = (context.globals.direction as 'ltr' | 'rtl') || defaultDir;
+      return (
+        <div dir={dir} className="min-h-32">
+          <Story />
+        </div>
+      );
+    },
+  ],
+};
+
+export default preview;

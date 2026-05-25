@@ -1,0 +1,163 @@
+/// <reference lib="webworker" />
+/**
+ * Service Worker.
+ *
+ * Build-time Serwist generates the precache manifest and wires this file as
+ * the SW. The file imports Serwist's runtime helpers and registers our
+ * locked caching strategies.
+ *
+ * Locked strategies (see references/pwa-strategy.md for the why):
+ *
+ *   precache: hashed build outputs (JS / CSS / chunks)  — cache-first via Serwist precaching
+ *   runtime:
+ *     fonts            → CacheFirst, 1 year, immutable
+ *     images           → StaleWhileRevalidate, 30 days
+ *     api (/api/*)     → NetworkFirst, fall back to cache, 10-second network timeout
+ *     pages (HTML)     → NetworkFirst, fall back to cache, fall back to /offline
+ *     all else         → NetworkFirst with cache fallback
+ */
+
+import { defaultCache } from '@serwist/next/worker';
+import {
+  CacheFirst,
+  ExpirationPlugin,
+  NetworkFirst,
+  Serwist,
+  StaleWhileRevalidate,
+} from 'serwist';
+
+declare global {
+  interface WorkerGlobalScope {
+    __SW_MANIFEST: (string | { url: string; revision: string | null })[] | undefined;
+  }
+}
+
+declare const self: ServiceWorkerGlobalScope & {
+  __SW_MANIFEST: (string | { url: string; revision: string | null })[] | undefined;
+};
+
+const serwist = new Serwist({
+  precacheEntries: self.__SW_MANIFEST,
+  skipWaiting: false,         // Don't auto-activate — let PwaUpdater UI decide.
+  clientsClaim: true,         // Once activated, immediately control all open pages.
+  navigationPreload: true,    // Faster nav requests in supporting browsers.
+
+  runtimeCaching: [
+    // Fonts — immutable, cache for a year
+    {
+      matcher: ({ url }) =>
+        url.origin === self.location.origin && /\.(woff2?|ttf|otf|eot)$/i.test(url.pathname),
+      handler: new CacheFirst({
+        cacheName: 'fonts',
+        plugins: [
+          new ExpirationPlugin({
+            maxEntries: 50,
+            maxAgeSeconds: 365 * 24 * 60 * 60,
+          }),
+        ],
+      }),
+    },
+
+    // Images — fresh in background, instant from cache
+    {
+      matcher: ({ request }) => request.destination === 'image',
+      handler: new StaleWhileRevalidate({
+        cacheName: 'images',
+        plugins: [
+          new ExpirationPlugin({
+            maxEntries: 200,
+            maxAgeSeconds: 30 * 24 * 60 * 60,
+          }),
+        ],
+      }),
+    },
+
+    // API requests — network-first with cache fallback. 10s network timeout.
+    {
+      matcher: ({ url, request }) =>
+        url.origin === self.location.origin &&
+        url.pathname.startsWith('/api/') &&
+        request.method === 'GET',
+      handler: new NetworkFirst({
+        cacheName: 'api',
+        networkTimeoutSeconds: 10,
+        plugins: [
+          new ExpirationPlugin({
+            maxEntries: 100,
+            maxAgeSeconds: 60 * 60,
+          }),
+        ],
+      }),
+    },
+
+    // Page navigations — network-first, fallback to cache, fallback to /offline
+    {
+      matcher: ({ request }) => request.mode === 'navigate',
+      handler: new NetworkFirst({
+        cacheName: 'pages',
+        networkTimeoutSeconds: 5,
+        plugins: [
+          new ExpirationPlugin({
+            maxEntries: 50,
+            maxAgeSeconds: 24 * 60 * 60,
+          }),
+        ],
+      }),
+    },
+
+    // Fall through to Serwist's default cache for anything else (CSS, JS chunks, etc.)
+    ...defaultCache,
+  ],
+
+  fallbacks: {
+    entries: [
+      {
+        url: '/offline',
+        matcher: ({ request }) => request.destination === 'document',
+      },
+    ],
+  },
+});
+
+serwist.addEventListeners();
+
+// ---------------------------------------------------------------------------
+// Web Push handler — wired but inert until a project enables push.
+// ---------------------------------------------------------------------------
+
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+  let payload: { title: string; body?: string; url?: string; icon?: string };
+  try {
+    payload = event.data.json();
+  } catch {
+    payload = { title: event.data.text() };
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      icon: payload.icon ?? '/icons/icon-192.png',
+      badge: '/icons/icon-badge.png',
+      data: { url: payload.url },
+    }),
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data as { url?: string } | null)?.url ?? '/';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      // Focus an existing tab if any, else open new.
+      for (const client of clients) {
+        if ('focus' in client) {
+          (client as WindowClient).navigate(url);
+          return (client as WindowClient).focus();
+        }
+      }
+      return self.clients.openWindow(url);
+    }),
+  );
+});

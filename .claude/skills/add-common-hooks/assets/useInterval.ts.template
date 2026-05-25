@@ -1,0 +1,28 @@
+'use client';
+
+import { useEffect, useRef } from 'react';
+
+/**
+ * `setInterval` with proper cleanup and latest-callback handling.
+ *
+ *   useInterval(() => refetch(), 5_000);
+ *
+ * Pass `null` to pause:
+ *
+ *   useInterval(() => poll(), isPaused ? null : 1_000);
+ *
+ * The callback's identity doesn't matter — it always runs the latest version.
+ */
+export function useInterval(callback: () => void, delay: number | null): void {
+  const savedCallback = useRef(callback);
+
+  useEffect(() => {
+    savedCallback.current = callback;
+  }, [callback]);
+
+  useEffect(() => {
+    if (delay === null) return;
+    const id = setInterval(() => savedCallback.current(), delay);
+    return () => clearInterval(id);
+  }, [delay]);
+}

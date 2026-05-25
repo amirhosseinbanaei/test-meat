@@ -1,0 +1,91 @@
+'use client';
+
+import React from 'react';
+import type { VariantProps } from 'class-variance-authority';
+import { cn } from '@/common/lib/utils';
+import { useSlots, type SlotOptions } from '@/common/hooks/useSlots';
+import { BaseMyComponent } from '@/common/components/ui/{{primitive-kebab}}';
+import { {{componentName}}Variants } from '@/common/components/variants/{{componentName}}';
+
+/**
+ * {{ComponentName}} — design-system component.
+ *
+ * Wraps the {{primitive-kebab}} primitive from ui/ with the project's brand
+ * styles, slots API (icons + tooltip), and classNames API.
+ *
+ * Form-connected usage: import `Form{{ComponentName}}` from
+ * `@/common/components/form/Form{{ComponentName}}`.
+ */
+
+export interface {{ComponentName}}Props
+  extends Omit<React.ComponentProps<typeof BaseMyComponent>, 'size'>,
+    VariantProps<typeof {{componentName}}Variants> {
+  /** Visible label above the field. */
+  label?: string;
+  /** Helper text below the field. */
+  description?: string;
+  /** Error message below the field. Sets aria-invalid on the input. */
+  error?: string;
+  /** Slots: left/right icons and tooltip. */
+  slots?: SlotOptions;
+  /** Style overrides per subpart. */
+  classNames?: {
+    container?: string;
+    label?: string;
+    input?: string;
+    description?: string;
+    error?: string;
+  };
+}
+
+const {{ComponentName}} = React.forwardRef<
+  React.ComponentRef<typeof BaseMyComponent>,
+  {{ComponentName}}Props
+>(({ variant, label, description, error, slots, classNames, ...props }, ref) => {
+  const { withTooltip, leftIcon, rightIcon, hasLeftIcon, hasRightIcon } = useSlots(slots);
+
+  return withTooltip(
+    <div className={cn('flex flex-col gap-1', classNames?.container)}>
+      {label && (
+        <label className={cn('text-sm font-medium', classNames?.label)}>
+          {label}
+        </label>
+      )}
+
+      <div className="relative">
+        {leftIcon}
+        <BaseMyComponent
+          ref={ref}
+          className={cn(
+            {{componentName}}Variants({ variant }),
+            hasLeftIcon && 'ps-9',
+            hasRightIcon && 'pe-9',
+            classNames?.input,
+          )}
+          aria-invalid={!!error || undefined}
+          {...props}
+        />
+        {rightIcon}
+      </div>
+
+      {description && !error && (
+        <p className={cn('text-xs text-muted-foreground', classNames?.description)}>
+          {description}
+        </p>
+      )}
+
+      {error && (
+        <p
+          className={cn('text-xs font-medium text-destructive', classNames?.error)}
+          role="alert"
+        >
+          {error}
+        </p>
+      )}
+    </div>,
+  );
+});
+
+{{ComponentName}}.displayName = '{{ComponentName}}';
+
+export { {{ComponentName}} };

@@ -1,0 +1,58 @@
+'use client';
+
+import { useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { useGLTF, OrbitControls, Environment } from '@react-three/drei';
+import type { Group } from 'three';
+
+/**
+ * The 3D scene. Renders inside <Canvas> (provided by SceneContainer).
+ *
+ * Lazy-loaded — this file (and its three.js / drei deps) only ships on the
+ * route that imports SceneContainer.
+ *
+ * Replace the model loading + scene contents with the actual design.
+ */
+
+interface SceneProps {
+  modelUrl: string;
+  reduceMotion: boolean;
+}
+
+export function Scene({ modelUrl, reduceMotion }: SceneProps) {
+  const groupRef = useRef<Group>(null);
+  const { scene } = useGLTF(modelUrl);
+
+  // Idle auto-rotation — disabled under reduced motion.
+  useFrame((_state, delta) => {
+    if (reduceMotion) return;
+    if (!groupRef.current) return;
+    groupRef.current.rotation.y += delta * 0.2;
+  });
+
+  return (
+    <>
+      <ambientLight intensity={0.4} />
+      <directionalLight position={[5, 10, 5]} intensity={1.2} castShadow />
+
+      <group ref={groupRef}>
+        <primitive object={scene} />
+      </group>
+
+      <Environment preset="studio" />
+
+      <OrbitControls
+        enablePan={false}
+        enableZoom={true}
+        enableRotate={!reduceMotion}
+        autoRotate={false}
+        minDistance={2}
+        maxDistance={10}
+      />
+    </>
+  );
+}
+
+// Optional preload helper — call from a route that knows the user will
+// see this scene soon.
+useGLTF.preload?.('/models/product.glb');

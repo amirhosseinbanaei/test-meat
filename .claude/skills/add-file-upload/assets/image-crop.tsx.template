@@ -1,0 +1,145 @@
+'use client';
+
+/**
+ * Image crop modal.
+ *
+ * Wraps `react-image-crop` in a shadcn Dialog. Used between "user picked a file"
+ * and "upload starts" when the file is an image that should be cropped (avatar,
+ * hero image, etc.).
+ *
+ * Returns a new `File` containing the cropped image, ready for compression and
+ * upload.
+ *
+ * Note: `react-image-crop` provides the crop selection UI and the crop coords.
+ * The actual pixel work is done via canvas in `cropToFile` below — pure browser
+ * APIs, no extra dep.
+ */
+
+import { useRef, useState, useCallback } from 'react';
+import ReactCrop, { centerCrop, makeAspectCrop, type Crop, type PixelCrop } from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
+
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+
+type ImageCropModalProps = {
+  open: boolean;
+  file: File | null;
+  aspect?: number;            // e.g. 1 for square avatar, 16/9 for hero
+  outputType?: string;        // default 'image/jpeg'
+  outputQuality?: number;     // default 0.9
+  onCancel: () => void;
+  onCropped: (cropped: File) => void;
+};
+
+export function ImageCropModal({
+  open,
+  file,
+  aspect = 1,
+  outputType = 'image/jpeg',
+  outputQuality = 0.9,
+  onCancel,
+  onCropped,
+}: ImageCropModalProps) {
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const [crop, setCrop] = useState<Crop | undefined>();
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
+  const [src, setSrc] = useState<string | null>(null);
+
+  // Generate an object URL when the file changes.
+  useState(() => {
+    if (!file) {
+      setSrc(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setSrc(url);
+    return () => URL.revokeObjectURL(url);
+  });
+
+  const onImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const { naturalWidth, naturalHeight } = e.currentTarget;
+    const initial = centerCrop(
+      makeAspectCrop({ unit: '%', width: 80 }, aspect, naturalWidth, naturalHeight),
+      naturalWidth,
+      naturalHeight,
+    );
+    setCrop(initial);
+  }, [aspect]);
+
+  const onConfirm = useCallback(async () => {
+    if (!completedCrop || !imgRef.current || !file) return;
+    const cropped = await cropToFile(imgRef.current, completedCrop, file.name, outputType, outputQuality);
+    onCropped(cropped);
+  }, [completedCrop, file, outputType, outputQuality, onCropped]);
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Crop image</DialogTitle>
+        </DialogHeader>
+        {src && (
+          <ReactCrop
+            crop={crop}
+            onChange={(c) => setCrop(c)}
+            onComplete={(c) => setCompletedCrop(c)}
+            aspect={aspect}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img ref={imgRef} src={src} onLoad={onImageLoad} alt="" />
+          </ReactCrop>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button onClick={onConfirm} disabled={!completedCrop}>Crop</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Convert a PixelCrop into a new File via canvas.
+ * Pure browser APIs — no extra dep.
+ */
+async function cropToFile(
+  image: HTMLImageElement,
+  crop: PixelCrop,
+  fileName: string,
+  type: string,
+  quality: number,
+): Promise<File> {
+  const scaleX = image.naturalWidth / image.width;
+  const scaleY = image.naturalHeight / image.height;
+  const canvas = document.createElement('canvas');
+  canvas.width = crop.width * scaleX;
+  canvas.height = crop.height * scaleY;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas 2D context unavailable.');
+
+  ctx.drawImage(
+    image,
+    crop.x * scaleX,
+    crop.y * scaleY,
+    crop.width * scaleX,
+    crop.height * scaleY,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  );
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, type, quality);
+  });
+  if (!blob) throw new Error('Failed to encode cropped image.');
+
+  return new File([blob], fileName, { type, lastModified: Date.now() });
+}

@@ -1,0 +1,53 @@
+/**
+ * Client-side image compression.
+ *
+ * Wraps `browser-image-compression` with the FE team's defaults. Runs in a
+ * Web Worker — won't block the main thread.
+ *
+ * The wrapper exists so every uploader uses the same defaults — quality,
+ * max dimensions, target size — and so the FE Lead can adjust them in one place.
+ */
+
+import imageCompression from 'browser-image-compression';
+
+export type CompressionPreset = 'avatar' | 'blog-image' | 'attachment-image';
+
+const PRESETS: Record<CompressionPreset, {
+  maxSizeMB: number;
+  maxWidthOrHeight: number;
+  initialQuality: number;
+}> = {
+  // Small, square-ish, displayed at <= 256px most of the time.
+  avatar: { maxSizeMB: 0.2, maxWidthOrHeight: 512, initialQuality: 0.85 },
+
+  // Inline blog images. Displayed at content width — usually 800-1200px.
+  // Larger budget; image quality matters more.
+  'blog-image': { maxSizeMB: 1, maxWidthOrHeight: 1920, initialQuality: 0.85 },
+
+  // Generic image attachment. Tighter budget; speed over fidelity.
+  'attachment-image': { maxSizeMB: 0.5, maxWidthOrHeight: 1600, initialQuality: 0.8 },
+};
+
+export async function compressImage(file: File, preset: CompressionPreset): Promise<File> {
+  // Skip non-images — the function is a no-op for PDFs, docs, etc.
+  if (!file.type.startsWith('image/')) return file;
+
+  // SVG and animated formats: don't recompress (it would rasterise SVG and
+  // break animation in GIF). Pass through.
+  if (file.type === 'image/svg+xml' || file.type === 'image/gif') return file;
+
+  const opts = PRESETS[preset];
+  const compressed = await imageCompression(file, {
+    ...opts,
+    useWebWorker: true,
+    fileType: file.type, // preserve format unless we have reason to change
+  });
+
+  // The library returns Blob on some paths; normalise to File so the caller
+  // can use the original name + lastModified.
+  if (compressed instanceof File) return compressed;
+  return new File([compressed], file.name, {
+    type: compressed.type || file.type,
+    lastModified: Date.now(),
+  });
+}

@@ -1,0 +1,40 @@
+import { Skeleton } from '@/common/components/ui/skeleton';
+
+/**
+ * Example skeleton for a chart component. Mirror the loaded component's
+ * outer dimensions so the layout doesn't shift on swap-in.
+ *
+ * Copy and adapt per actual component type. See references/skeleton-patterns.md
+ * for shapes per component category.
+ */
+
+export function ChartSkeleton() {
+  return (
+    <div
+      className="w-full rounded-lg border bg-card p-6"
+      role="status"
+      aria-label="Loading chart"
+    >
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-6 w-40" />
+        <Skeleton className="h-8 w-24" />
+      </div>
+      <div className="mt-6 h-64 w-full">
+        <div className="flex h-full items-end gap-2">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <Skeleton
+              key={i}
+              className="flex-1"
+              style={{ height: `${30 + ((i * 13) % 60)}%` }}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="mt-4 flex gap-4">
+        <Skeleton className="h-3 w-16" />
+        <Skeleton className="h-3 w-16" />
+        <Skeleton className="h-3 w-16" />
+      </div>
+    </div>
+  );
+}
