@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+/* ════════════════════════════════════════════════════════════════════
+   Meat Plus — Tailwind v4 design tokens.
+   Source of truth for brand colors, type, radii and fluid scales.
+   Tokens declared here are exposed automatically as utility classes
+   (e.g. `--color-brand-red` → `bg-brand-red`, `text-brand-red`, …).
+   ════════════════════════════════════════════════════════════════════ */
+@theme {
+  /* Brand palette */
+  --color-brand-red: #a42125;
+  --color-brand-olive: #95a421;
+  --color-brand-cream: #ede5d8;
+  --color-brand-cream-soft: rgb(237 229 216 / 0.6);
+  --color-brand-bg: #f5f5f5;
+  --color-brand-line: #dedede;
+  --color-brand-line-strong: #d3d3d3;
+  --color-brand-ink: #020202;
+  --color-brand-mute: #afafaf;
+  --color-brand-mute-2: #a3a3a3;
+  --color-brand-amber: #e8a317;
+
+  /* Typography */
+  --font-sans: "IranSans", sans-serif , system-ui;
+  --font-khodkar: "Khodkar", sans-serif, system-ui;
+
+  /* Fluid type ramp (mobile → desktop) */
+  --text-fluid-section: clamp(1.875rem, 1.25rem + 2vw, 2.875rem);
+  --text-fluid-section--line-height: 1.1;
+  --text-fluid-card: clamp(1.5rem, 1rem + 1.6vw, 2.5rem);
+  --text-fluid-card--line-height: 1;
+
+  /* Brand-specific radii (huge corner curves used by the section panels) */
+  --radius-curve: clamp(8rem, 24vw, 31.75rem); /* 508px max */
+  --radius-curve-lg: clamp(9rem, 28vw, 36.4375rem); /* 583px max */
+
+  /* Touch-target size (WCAG 2.2 AA) */
+  --size-touch: 2.75rem; /* 44px */
+}
+
+/* Base reset / page chrome */
+html,
+body {
+  background: #fff;
+  color: var(--color-brand-ink);
+  font-family: var(--font-sans);
+  font-size: 16px;
+}
+body {
+  margin: 0;
+}
+img,
+svg {
+  display: block;
+}
+
+/* Hide native scrollbars on horizontal product/sticker rails while keeping
+   them keyboard- and pointer-scrollable. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Strike-through helper for "old price" used by the discount product card.
+   Tilted red rule (matches the design) — kept as a tiny utility rather than
+   trying to model it through arbitrary Tailwind classes everywhere. */
+.price-strike {
+  position: relative;
+  display: inline-block;
+}
+.price-strike::after {
+  content: "";
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  top: 50%;
+  height: 1px;
+  background: var(--color-brand-red);
+  transform: rotate(-10deg);
+}
