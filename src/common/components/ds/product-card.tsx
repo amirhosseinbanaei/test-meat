@@ -22,6 +22,8 @@ export type ProductCardProduct = {
   name: string;
   price: string;
   oldPrice?: string;
+  /** Optional slug — when provided the "مشاهده محصول" CTA links to /product/[slug]. */
+  slug?: string;
 };
 
 export function ProductCard({
@@ -107,12 +109,12 @@ export function ProductCard({
       </div>
 
       {/* CTA */}
-      <Button
-        variant='olive'
-        size='pill'
-        className='absolute bottom-5 left-1/2 -translate-x-1/2 w-[148px] font-normal'>
+      <a
+        href={product.slug ? `/product/${product.slug}` : '#'}
+        className='absolute bottom-5 left-1/2 -translate-x-1/2 w-[148px] inline-flex items-center justify-center gap-2 whitespace-nowrap h-[38px] px-4 rounded-[10px] text-sm font-normal bg-brand-olive text-brand-ink hover:brightness-95 transition-[filter]'
+      >
         مشاهده محصول
-      </Button>
+      </a>
     </article>
   );
 }

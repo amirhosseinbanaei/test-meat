@@ -58,7 +58,7 @@ export function ShopProductCard({
         <div className="flex items-center justify-between w-full gap-2 mt-2">
           {/* View product — text link style */}
           <a
-            href="#"
+            href={`/product/${product.id}`}
             className="inline-flex items-center gap-1.5 text-xs text-brand-ink hover:text-brand-red transition-colors shrink-0"
           >
             <ArrowLeft className="size-3.5" strokeWidth={2} />
