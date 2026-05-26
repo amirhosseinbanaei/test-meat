@@ -46,3 +46,7 @@ export {
 } from "./why-feature";
 
 export { FormField, type FormFieldProps } from "./form-field";
+export {
+  SidebarNavLink,
+  type SidebarNavLinkProps,
+} from "./sidebar-nav-link";
